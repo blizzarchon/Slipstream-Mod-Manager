@@ -304,12 +304,13 @@ public class XMLPatcher {
 			if ( node.getName().equals( "par" ) ) {
 
 				String parOp = node.getAttributeValue( "op" );
+				
+				if ( parOp == null || (!parOp.equals("AND") && !parOp.equals("OR") && !parOp.equals("NOR") && !parOp.equals("NAND")) )
+					throw new IllegalArgumentException( String.format( "Invalid \"op\" attribute (%s). Must be 'AND', 'OR', 'NAND', or 'NOR'.", getPathToRoot(node) ) );
 
-				if ( parOp == null || (!parOp.equals( "AND" ) && !parOp.equals( "OR" )) )
-					throw new IllegalArgumentException( String.format( "Invalid \"op\" attribute (%s). Must be 'AND' or 'OR'.", getPathToRoot(node) ) );
-
-				boolean isAnd = parOp.equals( "AND" );
-				boolean isOr = parOp.equals( "OR" );
+				boolean isAnd = (parOp.equals("AND") || parOp.equals("NAND"));
+				boolean isOr = (parOp.equals("OR") || parOp.equals("NOR"));
+				boolean isNot = (parOp.equals("NOR") || parOp.equals("NAND"));
 
 				Set<Element> candidateSet = new HashSet<Element>();
 				for ( Element criteriaNode : node.getChildren() ) {
@@ -328,6 +329,18 @@ public class XMLPatcher {
 					else if ( isAnd ) {
 						candidateSet.retainAll( candidates );
 					}
+				}
+				if ( isNot ) {
+					Set<Element> nandidateSet = new HashSet<Element>();
+					for ( Content content : contextNode.getContent() ) {
+						//getContent returns all kinds of shit without a filter, we only care about the child elements
+						//but it's not worthwhile writing a filter for a simple task like this since I don't know how filters work
+						if (content instanceof Element) {
+							nandidateSet.add( (Element)content );
+						}
+					}
+					nandidateSet.removeAll( candidateSet );
+					candidateSet = nandidateSet;
 				}
 				Map<Integer,Element> orderedCandidateMap = new TreeMap<Integer,Element>();
 				for ( Element candidate : candidateSet ) {
