@@ -1,5 +1,8 @@
 Changelog
 
+1.9.3:
+- Added advanced prepend tag
+
 1.9.2:
 - Fixed ftl.dat parsing when 0-byte resources are present
 

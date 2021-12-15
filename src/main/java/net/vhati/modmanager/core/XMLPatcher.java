@@ -40,12 +40,14 @@ public class XMLPatcher {
 	protected Namespace modNS;
 	protected Namespace modAppendNS;
 	protected Namespace modOverwriteNS;
+	protected Namespace modPrependNS;
 
 
 	public XMLPatcher() {
 		modNS = Namespace.getNamespace( "mod", "mod" );
 		modAppendNS = Namespace.getNamespace( "mod-append", "mod-append" );
 		modOverwriteNS = Namespace.getNamespace( "mod-overwrite", "mod-overwrite" );
+		modPrependNS = Namespace.getNamespace( "mod-prepend", "mod-prepend" );
 	}
 
 	public void setGlobalPanic( boolean b ) {
@@ -404,6 +406,15 @@ public class XMLPatcher {
 				Element newNode = cmdNode.clone();
 				newNode.setNamespace( null );
 				contextNode.addContent( newNode );
+			}
+
+			else if ( cmdNode.getNamespace().equals( modPrependNS ) ) {
+				// Prepend cmdNode (sans namespace) to the contextNode.
+				handled = true;
+				
+				Element newNode = cmdNode.clone();
+				newNode.setNamespace( null );
+				contextNode.addContent( 0, newNode );
 			}
 
 			else if ( cmdNode.getNamespace().equals( modOverwriteNS ) ) {
