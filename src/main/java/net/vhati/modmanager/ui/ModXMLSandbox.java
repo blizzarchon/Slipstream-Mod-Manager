@@ -326,12 +326,15 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 		try {
 			File ftlDatFile = new File( datsDir, "ftl.dat" );
 			File dataDatFile = new File( datsDir, "data.dat" );
+			String encoding;
 
 			if ( ftlDatFile.exists() ) {  // FTL 1.6.1.
 				pack = new PkgPack( ftlDatFile, "r" );
+				encoding = "utf-8";
 			}
 			else if ( dataDatFile.exists() ) {  // FTL 1.01-1.5.13.
 				pack = new FTLPack( dataDatFile, "r" );
+				encoding = "windows-1252";
 			}
 			else {
 				throw new FileNotFoundException( String.format( "Could not find either \"%s\" or \"%s\"", ftlDatFile.getName(), dataDatFile.getName() ) );
@@ -343,7 +346,7 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 			if ( innerPath == null ) return;
 
 			is = pack.getInputStream( innerPath );
-			InputStream rebuiltStream = ModUtilities.rebuildXMLFile( is, "windows-1252", pack.getName()+":"+innerPath );
+			InputStream rebuiltStream = ModUtilities.rebuildXMLFile( is, encoding, pack.getName()+":"+innerPath );
 			String rebuiltText = ModUtilities.decodeText( rebuiltStream, "Sandbox Main XML" ).text;
 			is.close();
 
