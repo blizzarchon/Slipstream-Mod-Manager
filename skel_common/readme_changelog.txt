@@ -1,5 +1,10 @@
 Changelog
 
+1.9.4:
+- Added regular expression support to advanced find tags
+- Added NAND and NOR logic support to advanced findComposite tag
+- Fixed bug where advanced tag AND logic would act like OR in certain cases
+
 1.9.3:
 - Added advanced prepend tag
 

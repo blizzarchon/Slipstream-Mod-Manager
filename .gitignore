@@ -20,3 +20,6 @@ Desktop.ini
 # IdeaJ
 *.idea
 *.iml
+
+# Batch file I made using instructions in readme-developers.txt
+create-modman.bat

@@ -108,6 +108,7 @@ public class XMLPatcher {
 				int searchLimit = getAttributeIntValue( node, "limit", 1 );
 				boolean panic = getAttributeBooleanValue( node, "panic", false );
 				if ( globalPanic ) panic = true;
+				boolean useRegex = getAttributeBooleanValue( node, "regex", false );
 
 				if ( searchName == null || searchName.length() == 0 )
 					throw new IllegalArgumentException( String.format( "<%s> requires a name attribute (%s).", node.getName(), getPathToRoot(node) ) );
@@ -120,7 +121,7 @@ public class XMLPatcher {
 	
 				Map<String,String> attrMap = new HashMap<String,String>();
 				attrMap.put( "name", searchName );
-				LikeFilter searchFilter = new LikeFilter( searchType, attrMap, null );
+				LikeFilter searchFilter = new LikeFilter( searchType, attrMap, null, useRegex );
 	
 				List<Element> matchedNodes = new ArrayList<Element>( contextNode.getContent( searchFilter ) );
 				if ( searchReverse ) Collections.reverse( matchedNodes );
@@ -148,6 +149,7 @@ public class XMLPatcher {
 				int searchLimit = getAttributeIntValue( node, "limit", -1 );
 				boolean panic = getAttributeBooleanValue( node, "panic", false );
 				if ( globalPanic ) panic = true;
+				boolean useRegex = getAttributeBooleanValue( node, "regex", false );
 
 				if ( searchType != null && searchType.length() == 0 )
 					throw new IllegalArgumentException( String.format( "<%s> type attribute, when present, can't be empty (%s).", node.getName(), getPathToRoot(node) ) );
@@ -175,7 +177,7 @@ public class XMLPatcher {
 					if ( searchValue.length() == 0 ) searchValue = null;
 				}
 	
-				LikeFilter searchFilter = new LikeFilter( searchType, attrMap, searchValue );
+				LikeFilter searchFilter = new LikeFilter( searchType, attrMap, searchValue, useRegex );
 	
 				List<Element> matchedNodes = new ArrayList<Element>( contextNode.getContent( searchFilter ) );
 				if ( searchReverse ) Collections.reverse( matchedNodes );
@@ -204,6 +206,7 @@ public class XMLPatcher {
 				int searchLimit = getAttributeIntValue( node, "limit", -1 );
 				boolean panic = getAttributeBooleanValue( node, "panic", false );
 				if ( globalPanic ) panic = true;
+				boolean useRegex = getAttributeBooleanValue( node, "regex", false );
 
 				if ( searchType != null && searchType.length() == 0 )
 					throw new IllegalArgumentException( String.format( "<%s> type attribute, when present, can't be empty (%s).", node.getName(), getPathToRoot(node) ) );
@@ -229,8 +232,8 @@ public class XMLPatcher {
 					if ( searchValue.length() == 0 ) searchValue = null;
 				}
 	
-				LikeFilter searchChildFilter = new LikeFilter( searchChildType, attrMap, searchValue );
-				WithChildFilter searchFilter = new WithChildFilter( searchType, searchChildFilter );
+				LikeFilter searchChildFilter = new LikeFilter( searchChildType, attrMap, searchValue, useRegex );
+				WithChildFilter searchFilter = new WithChildFilter( searchType, searchChildFilter, useRegex );
 
 				List<Element> matchedNodes = new ArrayList<Element>( contextNode.getContent( searchFilter ) );
 				if ( searchReverse ) Collections.reverse( matchedNodes );
@@ -299,59 +302,51 @@ public class XMLPatcher {
 	protected List<Element> handleModPar( Element contextNode, Element node ) {
 		List<Element> result = null;
 
-		if ( node.getNamespace().equals( modNS ) ) {
+		if ( node.getNamespace().equals( modNS ) && node.getName().equals( "par" ) ) {
+			String parOp = node.getAttributeValue( "op" );
 
-			if ( node.getName().equals( "par" ) ) {
+			if ( parOp == null || (!parOp.equals("AND") && !parOp.equals("OR") && !parOp.equals("NOR") && !parOp.equals("NAND")) )
+				throw new IllegalArgumentException( String.format( "Invalid \"op\" attribute (%s). Must be 'AND', 'OR', 'NAND', or 'NOR'.", getPathToRoot(node) ) );
 
-				String parOp = node.getAttributeValue( "op" );
-				
-				if ( parOp == null || (!parOp.equals("AND") && !parOp.equals("OR") && !parOp.equals("NOR") && !parOp.equals("NAND")) )
-					throw new IllegalArgumentException( String.format( "Invalid \"op\" attribute (%s). Must be 'AND', 'OR', 'NAND', or 'NOR'.", getPathToRoot(node) ) );
+			boolean isAnd = (parOp.equals("AND") || parOp.equals("NAND"));
+			boolean isOr = (parOp.equals("OR") || parOp.equals("NOR"));
+			boolean isNot = (parOp.equals("NOR") || parOp.equals("NAND"));
 
-				boolean isAnd = (parOp.equals("AND") || parOp.equals("NAND"));
-				boolean isOr = (parOp.equals("OR") || parOp.equals("NOR"));
-				boolean isNot = (parOp.equals("NOR") || parOp.equals("NAND"));
-
-				Set<Element> candidateSet = new HashSet<Element>();
-				for ( Element criteriaNode : node.getChildren() ) {
-					List<Element> candidates;
-					if ( criteriaNode.getName().equals( "par" ) && criteriaNode.getNamespace().equals( modNS ) ) {
-						candidates = handleModPar( contextNode, criteriaNode );
-					} else {
-						candidates = handleModFind( contextNode, criteriaNode );
-						if ( candidates == null )
-							throw new IllegalArgumentException( String.format( "Invalid <par> search criteria <%s> (%s). Must be a <find...> or <par>.", criteriaNode.getName(), getPathToRoot( criteriaNode ) ) );
-					}
-
-					if ( isOr || candidateSet.isEmpty() ) {
-						candidateSet.addAll( candidates );
-					}
-					else if ( isAnd ) {
-						candidateSet.retainAll( candidates );
-					}
-				}
-				if ( isNot ) {
-					Set<Element> nandidateSet = new HashSet<Element>();
-					for ( Content content : contextNode.getContent() ) {
-						//getContent returns all kinds of shit without a filter, we only care about the child elements
-						//but it's not worthwhile writing a filter for a simple task like this since I don't know how filters work
-						if (content instanceof Element) {
-							nandidateSet.add( (Element)content );
-						}
-					}
-					nandidateSet.removeAll( candidateSet );
-					candidateSet = nandidateSet;
-				}
-				Map<Integer,Element> orderedCandidateMap = new TreeMap<Integer,Element>();
-				for ( Element candidate : candidateSet ) {
-					int index = contextNode.indexOf( candidate );
-					orderedCandidateMap.put( new Integer( index ), candidate );
+			Set<Element> candidateSet = new HashSet<Element>();
+			boolean firstPass = true;
+			for ( Element criteriaNode : node.getChildren() ) {
+				List<Element> candidates;
+				if ( criteriaNode.getName().equals( "par" ) && criteriaNode.getNamespace().equals( modNS ) ) {
+					candidates = handleModPar( contextNode, criteriaNode );
+				} else {
+					candidates = handleModFind( contextNode, criteriaNode );
+					if ( candidates == null )
+						throw new IllegalArgumentException( String.format( "Invalid <par> search criteria <%s> (%s). Must be a <find...> or <par>.", criteriaNode.getName(), getPathToRoot( criteriaNode ) ) );
 				}
 
-				List<Element> matchedNodes = new ArrayList<Element>( orderedCandidateMap.values() );
-
-				result = matchedNodes;
+				if ( firstPass ) {
+					candidateSet.addAll( candidates );
+					firstPass = false;
+				} else if ( isOr ) {
+					candidateSet.addAll( candidates );
+				} else {
+					candidateSet.retainAll( candidates );
+				}
 			}
+			if ( isNot ) {
+				Set<Element> complementSet = new HashSet<Element>( contextNode.getChildren() );
+				complementSet.removeAll( candidateSet );
+				candidateSet = complementSet;
+			}
+			Map<Integer,Element> orderedCandidateMap = new TreeMap<Integer,Element>();
+			for ( Element candidate : candidateSet ) {
+				int index = contextNode.indexOf( candidate );
+				orderedCandidateMap.put(index, candidate );
+			}
+
+			List<Element> matchedNodes = new ArrayList<Element>( orderedCandidateMap.values() );
+
+			result = matchedNodes;
 		}
 
 		return result;
@@ -521,6 +516,9 @@ public class XMLPatcher {
 		private String type = null;
 		private Map<String,String> attrMap = null;
 		private String value = null;
+		private Pattern typePattern;
+		private Map<String,Pattern> attrToPattern;
+		private Pattern valuePattern;
 
 		public LikeFilter( String type, Element selectorNode ) {
 			this.type = type;
@@ -536,7 +534,7 @@ public class XMLPatcher {
 			if ( this.value.length() == 0 ) this.value = null;
 		}
 
-		public LikeFilter( String type, Map<String,String> attrMap, String value ) {
+		public LikeFilter( String type, Map<String,String> attrMap, String value, boolean regex ) {
 			super();
 			if ( type != null && type.length() == 0 ) type = null;
 			if ( value != null && value.length() == 0 ) value = null;
@@ -544,42 +542,73 @@ public class XMLPatcher {
 			this.type = type;
 			this.attrMap = attrMap;
 			this.value = value;
+			if (regex) {
+				if ( type != null ) {
+					typePattern = Pattern.compile( type );
+				}
+				if ( attrMap != null ) {
+					attrToPattern = new HashMap<String,Pattern>();
+					for ( Map.Entry<String,String> entry : attrMap.entrySet() ) {
+						attrToPattern.put( entry.getKey(), Pattern.compile( entry.getValue() ) );
+					}
+				}
+				if ( value != null ) {
+					valuePattern = Pattern.compile( value );
+				}
+			}
+		}
+
+		protected static boolean regexNotMatched( String text, Pattern regularExpression ) {
+			return !regularExpression.matcher( text ).matches();
 		}
 
 		@Override
 		public Element filter( Object content ) {
-			if ( content instanceof Element == false ) return null;
+			if ( !(content instanceof Element) ) return null;
 			Element node = (Element)content;
-			String tmp;
 
-			if ( type != null ) {
-				if ( type.equals( node.getName() ) == false ) {
+			if ( typePattern != null ) {
+				if ( regexNotMatched( node.getName(), typePattern ) ) {
+					return null;
+				}
+			} else if ( type != null ) { // regex is false
+				if ( !type.equals( node.getName() ) ) {
 					return null;
 				}
 			}
 
-			if ( attrMap != null ) {
+			if ( attrToPattern != null ) {
+				String nodeAttrValue;
+				for ( Map.Entry<String,Pattern> entry : attrToPattern.entrySet() ) {
+					nodeAttrValue = node.getAttributeValue( entry.getKey() );
+					if ( nodeAttrValue == null || regexNotMatched( nodeAttrValue, entry.getValue() ) ) {
+						return null;
+					}
+				}
+			} else if ( attrMap != null ) { // regex is false
+				String nodeAttrValue;
 				for ( Map.Entry<String,String> entry : attrMap.entrySet() ) {
 					String attrName = entry.getKey();
 					String attrValue = entry.getValue();
-					tmp = node.getAttributeValue( attrName );
-
-					if ( attrValue.equals( tmp ) == false ) {
+					nodeAttrValue = node.getAttributeValue( attrName );
+					if ( !attrValue.equals( nodeAttrValue ) ) {
 						return null;
 					}
 				}
 			}
 
-			if ( value != null ) {
-				if ( value.equals( node.getTextTrim() ) == false ) {
+			if ( valuePattern != null ) {
+				if ( regexNotMatched( node.getTextTrim(), valuePattern ) ) {
+					return null;
+				}
+			} else if ( value != null ) { // regex is false
+				if ( !value.equals( node.getTextTrim() ) ) {
 					return null;
 				}
 			}
 			return node;
 		}
 	}
-
-
 
 	/**
 	 * Matches elements with child elements that match a filter.
@@ -588,24 +617,32 @@ public class XMLPatcher {
 	protected static class WithChildFilter extends AbstractFilter<Element> {
 		private String type;
 		private Filter<Element> childFilter;
+		private Pattern typePattern;
 
 		public WithChildFilter( Filter<Element> childFilter ) {
-			this( null, childFilter );
+			this( null, childFilter, false );
 		}
 
-		public WithChildFilter( String type, Filter<Element> childFilter ) {
+		public WithChildFilter( String type, Filter<Element> childFilter, boolean regex ) {
 			this.type = type;
 			this.childFilter = childFilter;
+			if ( regex && type != null ) {
+				this.typePattern = Pattern.compile(type);
+			}
 		}
 
 		@Override
 		public Element filter( Object content ) {
-			if ( content instanceof Element == false ) return null;
+			if ( !(content instanceof Element) ) return null;
 			Element node = (Element)content;
 
-			if ( type != null ) {
-				if ( type.equals( node.getName() ) == false ) {
+			if ( typePattern != null ) {
+				if ( LikeFilter.regexNotMatched( node.getName(), typePattern ) ) {
 					return null;
+				}
+			} else if ( type != null ) { // regex is false
+				if ( !type.equals( node.getName() ) ) {
+						return null;
 				}
 			}
 

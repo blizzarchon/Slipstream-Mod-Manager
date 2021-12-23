@@ -123,7 +123,7 @@ Advanced XML
 
   They take the form:
 
-    <mod:find... reverse="false" start="0" limit="-1" panic="false">
+    <mod:find... reverse="false" start="0" limit="-1" regex="false" panic="false">
       <mod:holderForExtraFindArgs />
       <mod:someCommand />
       <mod:someCommand />
@@ -132,9 +132,10 @@ Advanced XML
   Some identify existing tags, using each result as context for commands.
 
     Unless stated otherwise, these all accept optional reverse, start,
-    limit, and panic args: defaulting to search forward, skip 0 matched
-    candidates, return up to an unlimited number of results, and not cause
-    an error when no results are found.
+    limit, regex, and panic args: defaulting to search forward, skip 0 matched
+    candidates, return up to an unlimited number of results, don't match
+    find attributes and selector value + attribute values as regular expressions,
+    and not cause an error when no results are found.
     Sometimes the <find...> may have an auxiliary tag just to hold more
     args.
 
@@ -173,9 +174,10 @@ Advanced XML
     </mod:findComposite>
 
       Collates results from several <find...> criteria, or even multiple
-      nested <par>entheses. The <par> combines results using "OR" (union)
-      or "AND" (intersection) logic. Any commands within those <find...>
-      tags will be ignored.
+      nested <par>entheses. The <par> combines results using "OR" (union),
+      "AND" (intersection), "NAND" (complement of intersection), or
+      "NOR" (complement of union) logic. Any commands within those <find...>
+      tags, except selector, will be ignored.
 
 
   The following commands can occur inside a <find...>.
@@ -201,6 +203,12 @@ Advanced XML
     </mod-append:XYZ>
       Appends a new <XYZ> child to the context tag. Aside from the prefix,
       the tag's type and content will appear as-is. It can be self-closing.
+
+    <mod-prepend:XYZ>
+    </mod-prepend:XYZ>
+      This is just like <mod-append:XYZ>, except that it adds the new child
+      at the beginning rather than at the end. So if the context tag has
+      any children, the newly created tag will appear before them.
 
     <mod-overwrite:XYZ>
     </mod-overwrite:XYZ>
