@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import net.vhati.modmanager.core.SloppyXMLParser;
 
@@ -93,6 +94,9 @@ public class XMLPatcher {
 	 * An empty list will be returned if there were no matches.
 	 *
 	 * TODO: Throw an exception in callers if results are required.
+	 *
+	 * @throws ModFindRegexException <br>
+	 * if a find tag has regex="true" but one of its fields has a syntax error as defined by {@link java.util.regex.Pattern}
 	 */
 	protected List<Element> handleModFind( Element contextNode, Element node ) {
 		List<Element> result = null;
@@ -121,7 +125,16 @@ public class XMLPatcher {
 	
 				Map<String,String> attrMap = new HashMap<String,String>();
 				attrMap.put( "name", searchName );
-				LikeFilter searchFilter = new LikeFilter( searchType, attrMap, null, useRegex );
+				LikeFilter searchFilter;
+				try {
+					searchFilter = new LikeFilter( searchType, attrMap, null, useRegex );
+				}
+				catch ( ModFindRegexException exception ) {
+					throw new ModFindRegexException (
+							String.format( "Path to problem: %s\n", getPathToRoot(node)),
+							exception
+					);
+				}
 	
 				List<Element> matchedNodes = new ArrayList<Element>( contextNode.getContent( searchFilter ) );
 				if ( searchReverse ) Collections.reverse( matchedNodes );
@@ -176,8 +189,17 @@ public class XMLPatcher {
 					searchValue = selectorNode.getTextTrim();  // Never null, but often "".
 					if ( searchValue.length() == 0 ) searchValue = null;
 				}
-	
-				LikeFilter searchFilter = new LikeFilter( searchType, attrMap, searchValue, useRegex );
+
+				LikeFilter searchFilter;
+				try {
+					searchFilter = new LikeFilter(searchType, attrMap, searchValue, useRegex);
+				}
+				catch ( ModFindRegexException exception ) {
+					throw new ModFindRegexException (
+							String.format( "Path to problem: %s\n", getPathToRoot(node)),
+							exception
+					);
+				}
 	
 				List<Element> matchedNodes = new ArrayList<Element>( contextNode.getContent( searchFilter ) );
 				if ( searchReverse ) Collections.reverse( matchedNodes );
@@ -231,9 +253,19 @@ public class XMLPatcher {
 					searchValue = selectorNode.getTextTrim();  // Never null, but often "".
 					if ( searchValue.length() == 0 ) searchValue = null;
 				}
-	
-				LikeFilter searchChildFilter = new LikeFilter( searchChildType, attrMap, searchValue, useRegex );
-				WithChildFilter searchFilter = new WithChildFilter( searchType, searchChildFilter, useRegex );
+
+				LikeFilter searchChildFilter;
+				WithChildFilter searchFilter;
+				try {
+					searchChildFilter = new LikeFilter( searchChildType, attrMap, searchValue, useRegex );
+					searchFilter = new WithChildFilter( searchType, searchChildFilter, useRegex );
+				}
+				catch ( ModFindRegexException exception ) {
+					throw new ModFindRegexException(
+							String.format( "Path to problem: %s\n", getPathToRoot(node)),
+							exception
+					);
+				}
 
 				List<Element> matchedNodes = new ArrayList<Element>( contextNode.getContent( searchFilter ) );
 				if ( searchReverse ) Collections.reverse( matchedNodes );
@@ -470,7 +502,7 @@ public class XMLPatcher {
 			buf.insert( 0, chunk );
 			node = node.getParentElement();
 		}
-		return buf.toString();
+		return buf.toString().replaceFirst("wrapper", "root");
 	}
 
 
@@ -505,6 +537,33 @@ public class XMLPatcher {
 		}
 	}
 
+	/**
+	 * Indicates a problem occurred with regular expression syntax in mod find tags. <br>
+	 * Messages part of the stack trace can be retrieved by {@link ModFindRegexException#getLocalizedMessage()}.
+	 */
+	public static class ModFindRegexException extends IllegalArgumentException {
+
+		private final String representation;
+
+		/**
+		 * Constructs an exception with the specified message and cause, just like the
+		 * {@link java.lang.IllegalArgumentException#IllegalArgumentException(String, Throwable) superclass constructor},
+		 * except that it also internally saves the messages part of the stack trace for later retrieval by
+		 * {@link ModFindRegexException#getLocalizedMessage()}.
+		 */
+		public ModFindRegexException(String message, Throwable cause) {
+			super(message, cause);
+			representation = message + cause.getLocalizedMessage();
+		}
+
+		/**
+		 * Returns a String representation of the messages part of the stack trace.
+		 */
+		@Override
+		public String getLocalizedMessage() {
+			return representation;
+		}
+	}
 
 	/**
 	 * Matches elements with equal type/attributes/value.
@@ -534,6 +593,11 @@ public class XMLPatcher {
 			if ( this.value.length() == 0 ) this.value = null;
 		}
 
+		/**
+		 * @throws ModFindRegexException <br>
+		 * if {@code regex} is true and {@code type}, any of the values in {@code attrMap}, or {@code value}
+		 * has invalid syntax for a regular expression as defined by {@link java.util.regex.Pattern}
+		 */
 		public LikeFilter( String type, Map<String,String> attrMap, String value, boolean regex ) {
 			super();
 			if ( type != null && type.length() == 0 ) type = null;
@@ -542,19 +606,36 @@ public class XMLPatcher {
 			this.type = type;
 			this.attrMap = attrMap;
 			this.value = value;
-			if (regex) {
+			if ( regex ) {
 				if ( type != null ) {
-					typePattern = Pattern.compile( type );
+					typePattern = getPattern( "type or child-type", type );
 				}
 				if ( attrMap != null ) {
 					attrToPattern = new HashMap<String,Pattern>();
 					for ( Map.Entry<String,String> entry : attrMap.entrySet() ) {
-						attrToPattern.put( entry.getKey(), Pattern.compile( entry.getValue() ) );
+						String attribute = entry.getKey();
+						Pattern pattern = getPattern( attribute + " attribute", entry.getValue() );
+						attrToPattern.put( attribute, pattern );
 					}
 				}
 				if ( value != null ) {
-					valuePattern = Pattern.compile( value );
+					valuePattern = getPattern( "selector tag value", value );
 				}
+			}
+		}
+
+		/**
+		 * Attempts to compile the given {@code pattern} into a regular expression.
+		 * @throws ModFindRegexException <br>
+		 * if {@code pattern} has invalid syntax as defined by {@link java.util.regex.Pattern}.
+		 * {@code location} details the context of {@code pattern}.
+		 */
+		protected static Pattern getPattern( String location, String pattern ) {
+			try {
+				return Pattern.compile( pattern );
+			} catch ( PatternSyntaxException pse ) {
+				String locationDescription = String.format( "Regular expression syntax error...\nCheck %s at listed path.\n", location );
+				throw new ModFindRegexException( locationDescription, pse );
 			}
 		}
 
@@ -623,11 +704,16 @@ public class XMLPatcher {
 			this( null, childFilter, false );
 		}
 
+		/**
+		 * @throws ModFindRegexException <br>
+		 * if {@code regex} is true and {@code type} has invalid syntax
+		 * for a regular expression as defined by {@link java.util.regex.Pattern}
+		 */
 		public WithChildFilter( String type, Filter<Element> childFilter, boolean regex ) {
 			this.type = type;
 			this.childFilter = childFilter;
 			if ( regex && type != null ) {
-				this.typePattern = Pattern.compile(type);
+				this.typePattern = LikeFilter.getPattern("find tag type", type );
 			}
 		}
 

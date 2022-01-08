@@ -69,10 +69,10 @@ public class ModPatchDialog extends ProgressDialog implements ModPatchObserver {
 		super.setTaskOutcome( outcome, e );
 		if ( !this.isShowing() ) return;
 
-		if ( succeeded == true ) {
+		if ( succeeded ) {
 			setStatusText( "Patching completed." );
 		} else {
-			setStatusText( String.format( "Patching failed: %s", e ) );
+			setStatusText( String.format( "Patching failed:\n%s", e.getLocalizedMessage() ) );
 		}
 	}
 }
