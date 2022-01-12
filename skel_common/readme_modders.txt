@@ -216,6 +216,18 @@ Advanced XML
       removed, and this <XYZ> will be inserted in its place. Otherwise,
       this has the same effect as <mod-append:XYZ>.
 
+    <mod:insertByFind type="before/after">
+      <mod:find...>
+      <mod-insert:XYZ>
+      </mod-insert:XYZ>
+    </mod:insertByFind>
+      Positions a new <XYZ> child to the context tag relative to tags
+       found by the <mod:find...> criteria.
+      When type="before", the child is inserted directly before the
+       highest tag found. Same effect as mod-prepend if nothing is found.
+      When type="after", the child is inserted directly after the
+       lowest tag found. Same effect as mod-append if nothing is found.
+
   Special tags and normal append content are processed in the order they
   occur in your mod. And when patching several mods at once, later mods
   edit in the wake of earlier ones.

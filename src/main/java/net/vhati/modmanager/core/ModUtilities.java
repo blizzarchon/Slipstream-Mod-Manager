@@ -267,7 +267,12 @@ public class ModUtilities {
 		Pattern comboPtn = Pattern.compile( "(<[?]xml [^>]*?[?]>\n*)|(</?FTL>)" );
 		Matcher m = null;
 		boolean mainHadRootTags = false;
-		String wrapperOpenTag = "<wrapper xmlns:mod='mod' xmlns:mod-append='mod-append' xmlns:mod-overwrite='mod-overwrite' xmlns:mod-prepend='mod-prepend'>";
+		String wrapperOpenTag = "<wrapper" +
+								" xmlns:mod='mod'" +
+								" xmlns:mod-append='mod-append'" +
+								" xmlns:mod-overwrite='mod-overwrite'" +
+								" xmlns:mod-prepend='mod-prepend'" +
+								" xmlns:mod-insert='mod-insert'>";
 		String wrapperCloseTag = "</wrapper>";
 		StringBuffer buf = null;
 
@@ -359,7 +364,12 @@ public class ModUtilities {
 
 		String srcText = decodeText( srcStream, srcDescription ).text;
 		srcText = xmlDeclPtn.matcher( srcText ).replaceFirst( "" );
-		srcText = "<wrapper xmlns:mod='mod' xmlns:mod-append='mod-append' xmlns:mod-overwrite='mod-overwrite' xmlns:mod-prepend='mod-prepend'>"+ srcText +"</wrapper>";
+		srcText = "<wrapper" +
+				" xmlns:mod='mod'" +
+				" xmlns:mod-append='mod-append'" +
+				" xmlns:mod-overwrite='mod-overwrite'" +
+				" xmlns:mod-prepend='mod-prepend'" +
+				" xmlns:mod-insert='mod-insert'>"+ srcText +"</wrapper>";
 		Document doc = parseStrictOrSloppyXML( srcText, srcDescription+" (wrapped)" );
 		srcText = null;
 
@@ -851,7 +861,12 @@ public class ModUtilities {
 		Matcher m;
 
 		// Wrap everything in a root tag, while mindful of the xml declaration.
-		String wrapperSTag = "<wrapper xmlns:mod='mod' xmlns:mod-append='mod-append' xmlns:mod-overwrite='mod-overwrite' xmlns:mod-prepend='mod-prepend'>";
+		String wrapperSTag = "<wrapper" +
+				" xmlns:mod='mod'" +
+				" xmlns:mod-append='mod-append'" +
+				" xmlns:mod-overwrite='mod-overwrite'" +
+				" xmlns:mod-prepend='mod-prepend'" +
+				" xmlns:mod-insert='mod-insert'>";
 
 		Pattern xmlDeclPtn = Pattern.compile( "<[?]xml [^>]*?[?]>\n*" );
 		m = xmlDeclPtn.matcher( srcBuf );
@@ -1091,7 +1106,7 @@ public class ModUtilities {
 		boolean xmlValid = true;
 
 		// Meh, the parser's gonna make its own wrapper with declarations anyway.
-		//text = "<wrapper xmlns:mod='mod' xmlns:mod-append='mod-append' xmlns:mod-overwrite='mod-overwrite' xmlns:mod-prepend='mod-prepend'>"+ text +"</wrapper>";
+		//text = "<wrapper xmlns:mod='mod' xmlns:mod-append='mod-append' xmlns:mod-overwrite='mod-overwrite'>"+ text +"</wrapper>";
 
 		try {
 			SloppyXMLParser parser = new SloppyXMLParser();

@@ -42,6 +42,7 @@ public class XMLPatcher {
 	protected Namespace modAppendNS;
 	protected Namespace modOverwriteNS;
 	protected Namespace modPrependNS;
+	protected Namespace modInsertNS;
 
 
 	public XMLPatcher() {
@@ -49,6 +50,7 @@ public class XMLPatcher {
 		modAppendNS = Namespace.getNamespace( "mod-append", "mod-append" );
 		modOverwriteNS = Namespace.getNamespace( "mod-overwrite", "mod-overwrite" );
 		modPrependNS = Namespace.getNamespace( "mod-prepend", "mod-prepend" );
+		modInsertNS = Namespace.getNamespace( "mod-insert", "mod-insert");
 	}
 
 	public void setGlobalPanic( boolean b ) {
@@ -435,6 +437,9 @@ public class XMLPatcher {
 					handled = true;
 					contextNode.detach();
 					break;
+				} else if ( cmdNode.getName().equals( "insertByFind" ) ) {
+					handled = true;
+					handleInsertByFind(contextNode, cmdNode);
 				}
 
 			}
@@ -482,6 +487,63 @@ public class XMLPatcher {
 		}
 	}
 
+	protected void handleInsertByFind(Element contextNode, Element cmdNode) {
+		// get type="z" attribute
+		String type = cmdNode.getAttributeValue("type");
+		if ( type == null )
+			throw new IllegalArgumentException( String.format("insertByFind requires a type attribute.\n(path: %s)", getPathToRoot(cmdNode) ) );
+		// get auxiliary tags
+		List<Element> existingNodes = null;
+		Element newNode = null;
+		for ( Element child : cmdNode.getChildren() ) {
+			if ( child.getNamespace().equals( modNS ) ) {
+				existingNodes = handleModFind( contextNode, child );
+				if ( existingNodes == null ) // then not a find tag
+					throw new IllegalArgumentException( String.format( "insertByFind expected mod:find tag, received mod:%s tag.\n(path: %s)", child.getName(), getPathToRoot(child) ) );
+			}
+			else if ( child.getNamespace().equals( modInsertNS ) )
+				newNode = child.clone();
+			else
+				throw new IllegalArgumentException( String.format(
+						"insertByFind expected mod:%s or mod-insert:%s, got %s.\n(path: %s)",
+						child.getName(), child.getName(), child.getQualifiedName(), getPathToRoot(child) )
+				);
+		}
+		if ( existingNodes == null ) // then mod:... missing
+			throw new IllegalArgumentException( String.format( "insertByFind is missing mod:find tag.\n(path: %s)", getPathToRoot(cmdNode) ) );
+		if ( newNode == null )
+			throw new IllegalArgumentException( String.format( "insertByFind is missing mod-insert: tag.\n(path: %s)", getPathToRoot(cmdNode) ) );
+		newNode.setNamespace( null );
+		// retrieve index. before = lowest index. after = highest index + 1.
+		int index;
+		boolean empty = existingNodes.isEmpty();
+		if ( type.equals( "before" ) ) {
+			if ( empty ) { // do prepend
+				contextNode.addContent( 0, newNode );
+				return;
+			}
+			Element first = existingNodes.get( 0 );
+			index = contextNode.indexOf( first );
+		}
+		else if ( type.equals( "after" ) ) {
+			if ( empty ) { // do append
+				contextNode.addContent( newNode );
+				return;
+			}
+			Element last = existingNodes.get( existingNodes.size() - 1 );
+			index = contextNode.indexOf( last ) + 1;
+		}
+		else
+			throw new IllegalArgumentException( String.format("insertByFind type attribute is invalid, must be either 'before' or 'after'.\n(path: %s)", getPathToRoot(cmdNode) ) );
+		// add new node based on index.
+		int numChildren = contextNode.getContentSize();
+		if ( numChildren == 0 || index < 0 )
+			index = 0;
+		if ( index > numChildren - 1 )
+			contextNode.addContent( newNode );
+		else
+			contextNode.addContent( index, newNode );
+	}
 
 	/**
 	 * Returns a string describing this element's location.
