@@ -216,17 +216,28 @@ Advanced XML
       removed, and this <XYZ> will be inserted in its place. Otherwise,
       this has the same effect as <mod-append:XYZ>.
 
-    <mod:insertByFind type="before/after">
+    <mod:insertByFind addAnyway="true">
       <mod:find...>
-      <mod-insert:XYZ>
-      </mod-insert:XYZ>
+      <mod-before:XYZ>
+      </mod-before:XYZ>
+      <mod-after:XYZ>
+      </mod-after:XYZ>
+      <!-- more mod-before or mod-after -->
     </mod:insertByFind>
-      Positions a new <XYZ> child to the context tag relative to tags
-       found by the <mod:find...> criteria.
-      When type="before", the child is inserted directly before the
-       highest tag found. Same effect as mod-prepend if nothing is found.
-      When type="after", the child is inserted directly after the
-       lowest tag found. Same effect as mod-append if nothing is found.
+      Purpose of this tag is to add tags on the same layer as find tag results.
+      This is accomplished by positioning new tags relative to find results.
+      insertByFind requires:
+        One <mod:find...> criteria. Specifies the find results.
+        At least one mod-before or mod-after tag, the new thing to insert.
+          No limit to how many mod-before and mod-after tags can be added,
+           so that only one insertByFind is needed for the same find criteria.
+         mod-before tags are placed as a single block before the highest tag found,
+         mod-after tags are placed as a single block after the lowest tag found.
+        Optional addAnyway attribute adds tags even when results aren't found (default true)
+          - mod-before tags are placed as a single block at the top (mod-prepend behavior)
+          - mod-after tags are placed as a single block at the end (mod-append behavior)
+         Set this to false when you only want to add tags when there are find results.
+
 
   Special tags and normal append content are processed in the order they
   occur in your mod. And when patching several mods at once, later mods

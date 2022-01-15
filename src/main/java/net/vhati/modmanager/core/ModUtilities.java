@@ -272,7 +272,8 @@ public class ModUtilities {
 								" xmlns:mod-append='mod-append'" +
 								" xmlns:mod-overwrite='mod-overwrite'" +
 								" xmlns:mod-prepend='mod-prepend'" +
-								" xmlns:mod-insert='mod-insert'>";
+								" xmlns:mod-before='mod-before'" +
+								" xmlns:mod-after='mod-after'>";
 		String wrapperCloseTag = "</wrapper>";
 		StringBuffer buf = null;
 
@@ -369,7 +370,8 @@ public class ModUtilities {
 				" xmlns:mod-append='mod-append'" +
 				" xmlns:mod-overwrite='mod-overwrite'" +
 				" xmlns:mod-prepend='mod-prepend'" +
-				" xmlns:mod-insert='mod-insert'>"+ srcText +"</wrapper>";
+				" xmlns:mod-before='mod-before'" +
+				" xmlns:mod-after='mod-after'>"+ srcText +"</wrapper>";
 		Document doc = parseStrictOrSloppyXML( srcText, srcDescription+" (wrapped)" );
 		srcText = null;
 
@@ -866,7 +868,8 @@ public class ModUtilities {
 				" xmlns:mod-append='mod-append'" +
 				" xmlns:mod-overwrite='mod-overwrite'" +
 				" xmlns:mod-prepend='mod-prepend'" +
-				" xmlns:mod-insert='mod-insert'>";
+				" xmlns:mod-before='mod-before'" +
+				" xmlns:mod-after='mod-after'>";
 
 		Pattern xmlDeclPtn = Pattern.compile( "<[?]xml [^>]*?[?]>\n*" );
 		m = xmlDeclPtn.matcher( srcBuf );
