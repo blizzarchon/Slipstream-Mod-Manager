@@ -379,13 +379,23 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 
 		messageArea.setText( "" );
 
+		File ftlDatFile = new File( datsDir, "ftl.dat" );
+		File dataDatFile = new File( datsDir, "data.dat" );
+		String encoding;
 		try {
-			InputStream mainStream = new ByteArrayInputStream( mainText.getBytes( "UTF-8" ) );
+			if ( ftlDatFile.exists() )  // FTL 1.6.1+
+				encoding = "UTF-8";
+			else if ( dataDatFile.exists() )  // FTL 1.01-1.5.13
+				encoding = "windows-1252";
+			else
+				throw new FileNotFoundException( String.format( "Could not find either \"%s\" or \"%s\"", ftlDatFile.getName(), dataDatFile.getName() ) );
+
+			InputStream mainStream = new ByteArrayInputStream( mainText.getBytes( encoding ) );
 
 			String appendText = appendArea.getText();
-			InputStream appendStream = new ByteArrayInputStream( appendText.getBytes( "UTF-8" ) );
+			InputStream appendStream = new ByteArrayInputStream( appendText.getBytes( encoding ) );
 
-			InputStream resultStream = ModUtilities.patchXMLFile( mainStream, appendStream, "windows-1252", false, "Sandbox Main XML", "Sandbox Append XML" );
+			InputStream resultStream = ModUtilities.patchXMLFile( mainStream, appendStream, encoding, false, "Sandbox Main XML", "Sandbox Append XML" );
 			String resultText = ModUtilities.decodeText( resultStream, "Sandbox Result XML" ).text;
 
 			resultArea.setText( resultText );

@@ -2,11 +2,13 @@ Changelog
 
 1.9.5:
 - Added advanced insertByFind tag
+- Fixed encoding bug in XML Sandbox that prevented patching files with UTF-8 chars
 
 1.9.4:
 - Added regular expression support to advanced find tags
 - Added NAND and NOR logic support to advanced findComposite tag
 - Fixed bug where advanced tag AND logic would act like OR in certain cases
+- Fixed encoding bug in XML Sandbox that prevented opening files with UTF-8 chars
 
 1.9.3:
 - Added advanced prepend tag
