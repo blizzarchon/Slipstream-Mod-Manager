@@ -1,9 +1,5 @@
 package net.vhati.modmanager.core;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -13,18 +9,20 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-import net.vhati.modmanager.core.SloppyXMLParser;
-
-import org.jdom2.*;
+import org.jdom2.Attribute;
+import org.jdom2.Content;
+import org.jdom2.Document;
+import org.jdom2.Element;
+import org.jdom2.Namespace;
+import org.jdom2.Parent;
+import org.jdom2.Text;
 import org.jdom2.filter.AbstractFilter;
 import org.jdom2.filter.ElementFilter;
 import org.jdom2.filter.Filter;
-import org.jdom2.input.JDOMParseException;
-import org.jdom2.input.SAXBuilder;
+import org.jdom2.filter.Filters;
 
 
 /**
@@ -76,7 +74,7 @@ public class XMLPatcher {
 				}
 
 				if ( !handled ) {
-					throw new IllegalArgumentException( String.format( "Unrecognized mod tag <%s> (%s).", node.getName(), getPathToRoot(node) ) );
+					throw new IllegalArgumentException( String.format( "Unrecognized mod tag <%s> (%s).", node.getQualifiedName(), getPathToRoot(node) ) );
 				}
 			}
 			else {
@@ -437,7 +435,7 @@ public class XMLPatcher {
 					break;
 				} else if ( cmdNode.getName().equals( "insertByFind" ) ) {
 					handled = true;
-					handleInsertByFind(contextNode, cmdNode);
+					handleInsertByFind( contextNode, cmdNode );
 				}
 
 			}
@@ -448,7 +446,7 @@ public class XMLPatcher {
 
 				Element newNode = cmdNode.clone();
 				newNode.setNamespace( null );
-				contextNode.addContent( newNode );
+				handleModAppend( contextNode, newNode );
 			}
 
 			else if ( cmdNode.getNamespace().equals( modPrependNS ) ) {
@@ -457,7 +455,7 @@ public class XMLPatcher {
 				
 				Element newNode = cmdNode.clone();
 				newNode.setNamespace( null );
-				contextNode.addContent( 0, newNode );
+				handleModPrepend( contextNode, newNode );
 			}
 
 			else if ( cmdNode.getNamespace().equals( modOverwriteNS ) ) {
@@ -475,22 +473,24 @@ public class XMLPatcher {
 					contextNode.addContent( doomedIndex, newNode );
 				}
 				else {
-					contextNode.addContent( newNode );
+					handleModAppend( contextNode, newNode );
 				}
 			}
 
 			if ( !handled ) {
-				throw new IllegalArgumentException( String.format( "Unrecognized mod tag <%s> (%s).", cmdNode.getName(), getPathToRoot( cmdNode ) ) );
+				throw new IllegalArgumentException( String.format( "Unrecognized mod tag <%s> (%s).", cmdNode.getQualifiedName(), getPathToRoot( cmdNode ) ) );
 			}
 		}
 	}
 
-	protected void handleInsertByFind(Element contextNode, Element cmdNode) {
+	protected void handleInsertByFind( Element contextNode, Element cmdNode ) {
+		// todo: check beforeNodes/afterNodes empty before checking if foundNodes empty?
 		boolean addAnyway = getAttributeBooleanValue( cmdNode, "addAnyway", true);
 		// get auxiliary tags
 		List<Element> foundNodes = null;
-		List<Element> beforeNodes = new ArrayList<Element>();
-		List<Element> afterNodes = new ArrayList<Element>();
+		List<Content> beforeNodes = new ArrayList<Content>();
+		List<Content> afterNodes = new ArrayList<Content>();
+		final Text spacing = getIndentedText( contextNode );
 		for ( Element child : cmdNode.getChildren() ) {
 			Namespace namespace = child.getNamespace();
 			if ( namespace.equals( modNS ) ) {
@@ -498,14 +498,39 @@ public class XMLPatcher {
 				if ( foundNodes == null ) // then not a find tag
 					throw new IllegalArgumentException( String.format( "insertByFind expected mod:find tag, received mod:%s tag.\n(path: %s)", child.getName(), getPathToRoot(child) ) );
 			}
-			else if ( namespace.equals( modBeforeNS ) )
-				beforeNodes.add( child.clone().setNamespace( null ) );
-			else if ( namespace.equals( modAfterNS ) )
-				afterNodes.add( child.clone().setNamespace( null ) );
+			else if ( namespace.equals( modBeforeNS ) ) {
+				if ( spacing != null ) {
+					Element newNode = child.clone().setNamespace( null );
+					// mod tags layering: contextNode -> insertByFind -> newNode
+					// result layering: contextNode -> newNode
+					// if newNode has any Text children, one layer of tabs needs to be removed
+					List<Text> newNodeTexts = newNode.getContent( Filters.textOnly() );
+					for ( Text t : newNodeTexts ) {
+						t.setText( removeLastChar( t.getText() ) );
+					}
+					beforeNodes.add( newNode );
+					beforeNodes.add( spacing.clone() );
+				} else {
+					beforeNodes.add( child.clone().setNamespace( null ) );
+				}
+			}
+			else if ( namespace.equals( modAfterNS ) ) {
+				if ( spacing != null ) {
+					afterNodes.add( spacing.clone() );
+					Element newNode = child.clone().setNamespace( null );
+					List<Text> newNodeTexts = newNode.getContent( Filters.textOnly() );
+					for ( Text t : newNodeTexts ) {
+						t.setText( removeLastChar( t.getText() ) );
+					}
+					afterNodes.add( newNode );
+				} else {
+					afterNodes.add( child.clone().setNamespace( null ) );
+				}
+			}
 			else
 				throw new IllegalArgumentException( String.format(
-						"insertByFind expected mod:%s, mod-before:%s or mod-after:%s, got %s.\n(path: %s)",
-						child.getName(), child.getName(), child.getName(), child.getQualifiedName(), getPathToRoot(child)
+						"insertByFind expected mod:%s, mod-before:%<s or mod-after:%<s, got %s.\n(path: %s)",
+						child.getName(), child.getQualifiedName(), getPathToRoot(child)
 				) );
 		}
 		if ( foundNodes == null ) // then mod:find missing
@@ -515,8 +540,8 @@ public class XMLPatcher {
 
 		if ( foundNodes.isEmpty() ) {
 			if ( addAnyway ) {
-				contextNode.addContent( 0, beforeNodes );
-				contextNode.addContent( afterNodes );
+				prependListOptionalSpacing( contextNode, beforeNodes, spacing );
+				appendListOptionalSpacing( contextNode, afterNodes, spacing );
 			}
 		}
 		else {
@@ -526,22 +551,135 @@ public class XMLPatcher {
 			int beforeIndex = contextNode.indexOf( first );
 			int numChildren = contextNode.getContentSize();
 			if ( numChildren == 0 || beforeIndex < 0 )
-				beforeIndex = 0;
-
-			if ( beforeIndex > numChildren - 1 )
-				contextNode.addContent( beforeNodes );
+				prependListOptionalSpacing( contextNode, beforeNodes, spacing );
+			else if ( beforeIndex > numChildren - 1 )
+				appendListOptionalSpacing( contextNode, beforeNodes, spacing );
 			else
-				contextNode.addContent( beforeIndex, beforeNodes);
-			// recalculate since contextNode might have more children
+				contextNode.addContent( beforeIndex, beforeNodes );
+			// recalculate since contextNode might have more children now
 			numChildren = contextNode.getContentSize();
 			int afterIndex = contextNode.indexOf( last ) + 1;
 			if ( numChildren == 0 || afterIndex < 0 )
-				afterIndex = 0;
-
-			if ( afterIndex > numChildren - 1 )
-				contextNode.addContent( afterNodes );
+				prependListOptionalSpacing( contextNode, afterNodes, spacing );
+			else if ( afterIndex > numChildren - 1 )
+				appendListOptionalSpacing( contextNode, afterNodes, spacing );
 			else
 				contextNode.addContent( afterIndex, afterNodes );
+		}
+	}
+
+	/**
+	 * Places <code>nodes</code> at the beginning of <code>context</code>'s content list.
+	 * If <code>whitespace</code> is not null, <code>nodes</code> will be pretty formatted.
+	 * If <code>nodes</code> is empty nothing will happen.
+	 */
+	protected void prependListOptionalSpacing( Element context, List<Content> nodes, Text whitespace ) {
+		if ( nodes.isEmpty() ) return;
+		if ( whitespace != null ) {
+			nodes.add( 0, whitespace.clone() );
+			nodes.remove( nodes.size() - 1 );
+			if ( context.getContentSize() == 0 )
+				nodes.add( new Text( removeLastChar( whitespace.getText() ) ) );
+		}
+		context.addContent( 0, nodes );
+	}
+
+	/**
+	 * Places <code>nodes</code> at the end of <code>context</code>'s content list.
+	 * If <code>whitespace</code> is not null, <code>nodes</code> will be pretty formatted.
+	 * If <code>nodes</code> is empty nothing will happen.
+	 */
+	protected void appendListOptionalSpacing( Element context, List<Content> nodes, Text whitespace ) {
+		if ( nodes.isEmpty() ) return;
+		if ( whitespace != null ) {
+			trimLastText( context );
+			nodes.add( new Text( removeLastChar( whitespace.getText() ) ) );
+		}
+		context.addContent( nodes );
+	}
+
+	/**
+	 * Perform mod-append tag, which adds <code>newNode</code> to the end of <code>contextNode</code>,
+	 * formatting with whitespace if {@link #getIndentedText(Element)} can find spacing from <code>contextNode</code>.
+	 */
+	protected void handleModAppend( Element contextNode, Element newNode ) {
+		final Text spacing = getIndentedText( contextNode );
+		if ( spacing != null ) {
+			// trim existing last Text right before closing tag
+			trimLastText( contextNode );
+			// add the spacing with correct amount of tabs
+			contextNode.addContent( spacing );
+			// add the new node
+			contextNode.addContent( newNode );
+			// space correctly with the closing tag
+			contextNode.addContent( new Text( removeLastChar( spacing.getText() ) ) );
+		}
+		else {
+			contextNode.addContent( newNode );
+		}
+	}
+
+	/**
+	 * Performs mod-prepend tag, which adds <code>newNode</code> to the beginning of <code>contextNode</code>,
+	 * formatting with whitespace if {@link #getIndentedText(Element)} can find spacing from <code>contextNode</code>.
+	 */
+	protected void handleModPrepend( Element contextNode, Element newNode ) {
+		boolean initiallyEmpty = contextNode.getContentSize() == 0;
+		final Text spacing = getIndentedText( contextNode );
+		if ( spacing != null ) {
+			contextNode.addContent( 0, spacing );
+			contextNode.addContent( 1, newNode );
+			// if not empty existing first Text before insertion is the right spacing, will be at index 2
+			if ( initiallyEmpty ) {
+				contextNode.addContent( 2, new Text( removeLastChar( spacing.getText() ) ));
+			}
+		}
+		else {
+			contextNode.addContent( 0, newNode );
+		}
+	}
+
+	/**
+	 * Tries to return the right combination of (\r) \n and \t characters needed to
+	 * properly space new children getting added to node by node.addContent(...).<br>
+	 * Looks at {@link Text} nodes in or next to <code>node</code> to find a suitable {@link Text} to return.<br>
+	 * Returns null if nothing can be found.
+	 */
+	protected Text getIndentedText( Element node ) {
+		// try finding child Text of node with \n\t
+		List<Text> textNodes = node.getContent( Filters.textOnly() );
+		for ( Text textNode : textNodes ) {
+			if ( textNode.getText().contains( "\n\t" ) ) {
+				return textNode.clone();
+			}
+		}
+		// if that fails look at node's Text neighbors with \n\t and manually add \t
+		Parent p = node.getParent();
+		if ( p != null ) { // just in case insertion can be done in future without initial find
+			textNodes = p.getContent( Filters.textOnly() );
+			for ( Text textNode : textNodes ) {
+				if ( textNode.getText().contains( "\n\t" ) ) {
+					return new Text( textNode.getText() + "\t" );
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Returns the given string minus the last character.
+	 */
+	protected String removeLastChar( String s ) {
+		return s.substring( 0, s.length() - 1 );
+	}
+
+	/**
+	 * Delete the last Text child of <code>contextNode</code> if it has one.
+	 */
+	protected void trimLastText( Element contextNode ) {
+		List<Text> contextNodeTexts = contextNode.getContent( Filters.textOnly() );
+		if ( !contextNodeTexts.isEmpty() ) {
+			contextNodeTexts.remove( contextNodeTexts.size() - 1 );
 		}
 	}
 
@@ -613,8 +751,8 @@ public class XMLPatcher {
 		 * except that it also internally saves the messages part of the stack trace for later retrieval by
 		 * {@link ModFindRegexException#getLocalizedMessage()}.
 		 */
-		public ModFindRegexException(String message, Throwable cause) {
-			super(message, cause);
+		public ModFindRegexException( String message, Throwable cause ) {
+			super( message, cause );
 			representation = message + cause.getLocalizedMessage();
 		}
 
