@@ -17,9 +17,6 @@ Desktop.ini
 .DS_Store
 
 
-# IdeaJ
-*.idea
-*.iml
-
-# Batch file I made using instructions in readme-developers.txt
-create-modman.bat
+# files created from running app directly
+modman-log.txt
+modman.cfg

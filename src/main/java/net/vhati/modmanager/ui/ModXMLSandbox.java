@@ -64,13 +64,21 @@ import net.vhati.modmanager.core.SloppyXMLOutputProcessor;
 import net.vhati.modmanager.core.XMLPatcher;
 import net.vhati.modmanager.ui.ClipboardMenuMouseListener;
 
+import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
+import org.fife.ui.rsyntaxtextarea.Theme;
+import org.fife.ui.rtextarea.RTextScrollPane;
 import org.jdom2.JDOMException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
  * A basic text editor to test XML modding.
  */
 public class ModXMLSandbox extends JFrame implements ActionListener {
+
+	private static final Logger log = LoggerFactory.getLogger( ModXMLSandbox.class );
 
 	private static final String baseTitle = "Mod XML Sandbox";
 
@@ -80,21 +88,22 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 	private File datsDir;
 
 	private JTabbedPane areasPane;
-	private JScrollPane mainScroll;
-	private JScrollPane appendScroll;
-	private JScrollPane resultScroll;
+	private RTextScrollPane mainScroll;
+	private RTextScrollPane appendScroll;
+	private RTextScrollPane resultScroll;
 	private JSplitPane splitPane;
 	private JScrollPane messageScroll;
 
-	private JTextArea mainArea;
-	private JTextArea appendArea;
-	private JTextArea resultArea;
+	private RSyntaxTextArea mainArea;
+	private RSyntaxTextArea appendArea;
+	private RSyntaxTextArea resultArea;
 	private JTextArea messageArea;
 	private JTextField findField;
 	private JButton openBtn;
 	private JButton patchBtn;
 	private JLabel statusLbl;
 
+	private Theme theme;
 
 	public ModXMLSandbox( File datsDir ) {
 		super( baseTitle );
@@ -104,25 +113,39 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 
 		Font sandboxFont = new Font( Font.MONOSPACED, Font.PLAIN, 13 );
 
-		mainArea = new JTextArea();
+		boolean themeWorks = true;
+		try {
+			theme = Theme.load( getClass().getResourceAsStream("/org/fife/ui/rsyntaxtextarea/themes/vs.xml") );
+		} catch (IOException e) {
+			log.warn( "Could not apply better sandbox theme from jar because of I/O error. Jar may be corrupted." );
+			themeWorks = false;
+		}
+
+		mainArea = new RSyntaxTextArea();
+		mainArea.setCodeFoldingEnabled( true );
 		mainArea.setTabSize( 4 );
-		mainArea.setFont( sandboxFont );
 		mainArea.setEditable( false );
 		mainArea.addMouseListener( new ClipboardMenuMouseListener() );
-		mainScroll = new JScrollPane( mainArea );
+		mainArea.setSyntaxEditingStyle( SyntaxConstants.SYNTAX_STYLE_XML );
+		if ( themeWorks ) theme.apply( mainArea );
+		mainScroll = new RTextScrollPane( mainArea );
 
-		appendArea = new JTextArea();
+		appendArea = new RSyntaxTextArea();
+		appendArea.setCodeFoldingEnabled( true );
 		appendArea.setTabSize( 4 );
-		appendArea.setFont( sandboxFont );
 		appendArea.addMouseListener( new ClipboardMenuMouseListener() );
-		appendScroll = new JScrollPane( appendArea );
+		appendArea.setSyntaxEditingStyle( SyntaxConstants.SYNTAX_STYLE_XML );
+		if ( themeWorks ) theme.apply( appendArea );
+		appendScroll = new RTextScrollPane( appendArea );
 
-		resultArea = new JTextArea();
+		resultArea = new RSyntaxTextArea();
+		resultArea.setCodeFoldingEnabled( true );
 		resultArea.setTabSize( 4 );
-		resultArea.setFont( sandboxFont );
 		resultArea.setEditable( false );
 		resultArea.addMouseListener( new ClipboardMenuMouseListener() );
-		resultScroll = new JScrollPane( resultArea );
+		resultArea.setSyntaxEditingStyle( SyntaxConstants.SYNTAX_STYLE_XML );
+		if ( themeWorks ) theme.apply( resultArea );
+		resultScroll = new RTextScrollPane( resultArea );
 
 		messageArea = new JTextArea();
 		messageArea.setLineWrap( true );
@@ -131,7 +154,11 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 		messageArea.setFont( sandboxFont );
 		messageArea.setEditable( false );
 		messageArea.addMouseListener( new ClipboardMenuMouseListener() );
-		messageArea.setText( "This is a sandbox to tinker with advanced mod syntax.\n1) Open XML from data.dat to fill the 'main' tab. (ctrl-o)\n2) Write some <mod:command> tags in the 'append' tab. (alt-1,2,3)\n3) Click Patch to see what would happen. (ctrl-p)\nUndo/redo is available. (ctrl-z/ctrl-y)" );
+		messageArea.setText( "This is a sandbox to tinker with advanced mod syntax.\n" +
+							 "1) Open XML from data.dat to fill the 'main' tab. (ctrl-o)\n" +
+							 "2) Write some <mod:command> tags in the 'append' tab. (alt-1,2,3)\n" +
+							 "3) Click Patch to see what would happen. (ctrl-p)\n" +
+							 "Undo/redo is available. (ctrl-z/ctrl-y)" );
 		messageScroll = new JScrollPane( messageArea );
 
 		JPanel ctrlPanel = new JPanel();
