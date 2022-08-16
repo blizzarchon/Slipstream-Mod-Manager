@@ -60,7 +60,7 @@ public class JacksonCatalogWriter {
 		OutputStream os = null;
 		try {
 			os = new FileOutputStream( dstFile );
-			OutputStreamWriter writer = new OutputStreamWriter( os, Charset.forName( "US-ASCII" ) );
+			OutputStreamWriter writer = new OutputStreamWriter( os, Charset.forName( "UTF-8" ) );
 			mapper.writeValue( writer, rootNode );
 		}
 		finally {
