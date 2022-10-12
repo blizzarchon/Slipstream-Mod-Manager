@@ -5,10 +5,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -20,18 +19,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.vhati.ftldat.AbstractPack;
-import net.vhati.ftldat.AbstractPack.RepackResult;
 import net.vhati.ftldat.FTLPack;
 import net.vhati.ftldat.PkgPack;
 import net.vhati.ftldat.PackContainer;
 import net.vhati.ftldat.PackUtilities;
-import net.vhati.modmanager.core.ModPatchObserver;
-import net.vhati.modmanager.core.ModUtilities;
+
+import org.apache.commons.io.FileUtils;
 
 
 public class ModPatchThread extends Thread {
 
 	private static final Logger log = LoggerFactory.getLogger( ModPatchThread.class );
+
+	private static final String slipstreamIdentifierResource = "slipstream-identifier.xml";
 
 	// Other threads can check or set this.
 	public volatile boolean keepRunning = true;
@@ -225,15 +225,37 @@ public class ModPatchThread extends Thread {
 			// Group1: parentPath/, Group2: root/, Group3: fileName.
 			Pattern pathPtn = Pattern.compile( "^(?:(([^/]+/)(?:.*/)?))?([^/]+)$" );
 
+			// only occurs after checking at least one mod is selected
+			String metadataFilename = "self-metadata.ftl";
+			if ( !ftlDatFile.exists() ) metadataFilename = "self-metadata-legacy.ftl";
+			InputStream metadataStream = getClass().getResourceAsStream( "/" + metadataFilename );
+
+			File selfMetadataMod = null;
+			if ( metadataStream == null ) {
+				warnLogMetadataNotFound();
+			}
+			else {
+				selfMetadataMod = File.createTempFile("SMM-", ".ftl");
+				FileUtils.copyInputStreamToFile( metadataStream, selfMetadataMod );
+				metadataStream.close();
+				modFiles.add( 0, selfMetadataMod );
+			}
+
 			for ( File modFile : modFiles ) {
 				if ( !keepRunning ) return false;
 
 				FileInputStream fis = null;
 				ZipInputStream zis = null;
 				try {
-					log.info( "" );
-					log.info( String.format( "Installing mod: %s", modFile.getName() ) );
-					observer.patchingMod( modFile );
+					if ( modFile.equals( selfMetadataMod ) ) {
+						log.info( "Installing mods..." );
+						observer.patchingStatus( "Installing mods..." );
+					}
+					else {
+						log.info( "" );
+						log.info( String.format( "Installing mod: %s", modFile.getName() ) );
+						observer.patchingMod( modFile );
+					}
 
 					fis = new FileInputStream( modFile );
 					zis = new ZipInputStream( new BufferedInputStream( fis ) );
@@ -349,6 +371,21 @@ public class ModPatchThread extends Thread {
 
 							if ( pack.contains( innerPath ) )
 								pack.remove( innerPath );
+							if ( fileName.startsWith( "text_misc." ) || fileName.startsWith( "misc." ) ) {
+								InputStream customStream = getClass().getResourceAsStream( "/" + slipstreamIdentifierResource );
+								if ( customStream != null ) {
+									InputStream finalStream = ModUtilities.appendXMLFile(
+											fixedStream, customStream, ultimateEncoding,
+											modFile.getName() + ":" + parentPath + fileName,
+											"slipstream-self-metadata:" + slipstreamIdentifierResource
+									);
+									customStream.close();
+									fixedStream = finalStream;
+								}
+								else {
+									warnLogMetadataNotFound();
+								}
+							}
 							pack.add( innerPath, fixedStream );
 						}
 						else if ( fileName.endsWith( ".xml" ) ) {
@@ -364,6 +401,21 @@ public class ModPatchThread extends Thread {
 
 							if ( pack.contains( innerPath ) )
 								pack.remove( innerPath );
+							if ( fileName.equals( "text_misc.xml" ) || fileName.equals( "misc.xml" ) ) {
+								InputStream customStream = getClass().getResourceAsStream( "/" + slipstreamIdentifierResource );
+								if ( customStream != null ) {
+									InputStream finalStream = ModUtilities.appendXMLFile(
+											fixedStream, customStream, ultimateEncoding,
+											modFile.getName() + ":" + parentPath + fileName,
+											"slipstream-self-metadata:" + slipstreamIdentifierResource
+									);
+									customStream.close();
+									fixedStream = finalStream;
+								}
+								else {
+									warnLogMetadataNotFound();
+								}
+							}
 							pack.add( innerPath, fixedStream );
 						}
 						else if ( fileName.endsWith( ".txt" ) ) {
@@ -416,6 +468,20 @@ public class ModPatchThread extends Thread {
 				modsInstalled++;
 				observer.patchingProgress( progMilestone + progModsMax/modFiles.size()*modsInstalled, progMax );
 			}
+			// Remove the temporary file
+			if ( selfMetadataMod != null ) {
+				try {
+					Files.deleteIfExists( selfMetadataMod.toPath() );
+				}
+				catch ( IOException e ) {
+					log.info( "" );
+					log.warn( String.format( "Couldn't delete %s, located in %s.", selfMetadataMod.getName(), selfMetadataMod.getParentFile() ) );
+					log.info( "This mod file is created during patching to add metadata, after which it is no longer needed and deleted." );
+					log.info( "Modders can then reference this metadata to guarantee the end user uses this custom version of Slipstream." );
+					log.info( "" );
+				}
+			}
+
 			progMilestone += progModsMax;
 			observer.patchingProgress( progMilestone, progMax );
 
@@ -448,6 +514,10 @@ public class ModPatchThread extends Thread {
 		}
 	}
 
+	private void warnLogMetadataNotFound() {
+		log.warn( "Metadata that says this Slipstream is a custom version could not be retrieved from jar." );
+		log.warn( "Mods that require this metadata will not patch. Please verify the jar is not corrupted." );
+	}
 
 	/**
 	 * Checks if an innerPath exists, ignoring letter case.
