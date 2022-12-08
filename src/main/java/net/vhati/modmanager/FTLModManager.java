@@ -41,6 +41,7 @@ public class FTLModManager {
 
 
 	public static void main( String[] args ) {
+		System.setProperty( "javax.xml.transform.TransformerFactory", "net.sf.saxon.TransformerFactoryImpl" );
 		// Redirect any libraries' java.util.Logging messages.
 		SLF4JBridgeHandler.removeHandlersForRootLogger();
 		SLF4JBridgeHandler.install();

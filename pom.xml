@@ -84,6 +84,16 @@
 			<artifactId>commons-io</artifactId>
 			<version>2.5</version>
 		</dependency>
+		<dependency>
+			<groupId>jaxen</groupId>
+			<artifactId>jaxen</artifactId>
+			<version>1.2.0</version>
+		</dependency>
+		<dependency>
+			<groupId>net.sf.saxon</groupId>
+			<artifactId>Saxon-HE</artifactId>
+			<version>11.4</version>
+		</dependency>
 	</dependencies>
   
 	<build>
@@ -95,6 +105,8 @@
 			<configuration>
 				<compilerArgument>-Xlint:unchecked</compilerArgument>
 				<compilerArgument>-Xlint:deprecation</compilerArgument>
+				<source>7</source>
+				<target>7</target>
 			</configuration>
 		</plugin>
 		<plugin>

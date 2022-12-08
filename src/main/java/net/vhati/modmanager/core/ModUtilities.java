@@ -1,13 +1,11 @@
 package net.vhati.modmanager.core;
 
-import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringReader;
 import java.io.Writer;
@@ -33,6 +31,12 @@ import java.util.zip.ZipInputStream;
 
 import ar.com.hjg.pngj.PngReader;
 
+import net.sf.saxon.s9api.Processor;
+import net.sf.saxon.s9api.SaxonApiException;
+import net.sf.saxon.s9api.Serializer;
+import net.sf.saxon.s9api.XsltCompiler;
+import net.sf.saxon.s9api.XsltExecutable;
+import net.sf.saxon.s9api.XsltTransformer;
 import org.jdom2.Content;
 import org.jdom2.Document;
 import org.jdom2.Element;
@@ -40,14 +44,13 @@ import org.jdom2.JDOMException;
 import org.jdom2.input.JDOMParseException;
 import org.jdom2.input.SAXBuilder;
 
+import org.jdom2.transform.JDOMSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.vhati.modmanager.core.EmptyAwareSAXHandlerFactory;
-import net.vhati.modmanager.core.EOLWriter;
-import net.vhati.modmanager.core.Report;
 import net.vhati.modmanager.core.Report.ReportMessage;
-import net.vhati.modmanager.core.SloppyXMLParser;
+
+import javax.xml.transform.stream.StreamSource;
 
 
 public class ModUtilities {
@@ -1159,6 +1162,124 @@ public class ModUtilities {
 		}
 
 		return new Report( messages, xmlValid );
+	}
+
+	/**
+	 * Gets the result of an XSL transformation as a new document. Given document remains intact.
+	 * @param sourceDoc - the Document upon which to apply the transform
+	 * @param stylesheet - the input stream containing the stylesheet
+	 */
+	public static Document transformDocument( Document sourceDoc, InputStream stylesheet ) throws IOException {
+		Document input = sourceDoc.clone();
+		ByteArrayOutputStream os = new ByteArrayOutputStream(1024);
+
+		Processor p = new Processor( false );
+		XsltCompiler c = p.newXsltCompiler();
+		XsltExecutable exe;
+		try {
+			exe = c.compile( new StreamSource( stylesheet ) );
+		} catch (SaxonApiException e) {
+			throw new IllegalArgumentException( "Error compiling stylesheet, probable XSL syntax error", e );
+		}
+
+		XsltTransformer t = exe.load();
+		t.setSource( new JDOMSource( input ) );
+		Serializer s = p.newSerializer( os );
+		// set serializer options here
+		// e.g. s.setOutputProperty( Serializer.Property.INDENT, "yes" );
+		t.setDestination( s );
+		try {
+			t.transform();
+		} catch (SaxonApiException e) {
+			throw new IllegalArgumentException( "Error applying stylesheet to current file", e );
+		}
+		SAXBuilder builder = new SAXBuilder();
+		Document result;
+		try {
+			result = builder.build( new ByteArrayInputStream( os.toByteArray() ) );
+		} catch (JDOMException e) {
+			throw new IllegalArgumentException( "Unable to parse result of transform as XML", e );
+		}
+
+		return result;
+	}
+
+	/**
+	 * Transforms mainStream using the stylesheet given by transformStream.
+	 *
+	 * If the mainStream had &lt;FTL&gt; tags (introduced in FTL 1.6.1), they
+	 * will be scrubbed, and new ones will be added after appending. If
+	 * appendStream has those tags, they will be scrubbed.
+	 *
+	 * The returned stream is a ByteArrayInputStream
+	 * which doesn't need closing.
+	 *
+	 * The result will have CR-LF line endings and the desired encoding.
+	 *
+	 * FTL 1.01-1.5.13 assumes all XML is in windows-1252 encoding, even on
+	 * Linux.
+	 *
+	 * FTL 1.6.1 assumes all XML is in UTF-8 encoding.
+	 *
+	 * The description arguments identify the streams for log messages.
+	 *
+	 * @see net.vhati.modmanager.core.ModUtilities#transformDocument
+	 * @see net.vhati.modmanager.core.SloppyXMLOutputProcessor
+	 */
+	public static InputStream transformXMLFile( InputStream mainStream, InputStream transformStream, String encoding, String mainDescription, String transformDescription ) throws IOException, JDOMException {
+		// XML declaration, or root FTL tags.
+		Pattern comboPtn = Pattern.compile( "(<[?]xml [^>]*?[?]>\n*)|(</?FTL>)" );
+		Matcher m = null;
+		boolean mainHadRootTags = false;
+		String wrapperOpenTag = "<wrapper>";
+		String wrapperCloseTag = "</wrapper>";
+		StringBuffer buf = null;
+
+		String mainText = decodeText( mainStream, mainDescription ).text;
+		buf = new StringBuffer( wrapperOpenTag.length() + mainText.length() + wrapperCloseTag.length() );
+		buf.append( wrapperOpenTag );
+		m = comboPtn.matcher( mainText );
+		while ( m.find() ) {
+			if ( m.group( 2 ) != null ) mainHadRootTags = true;
+			m.appendReplacement( buf, "" );
+		}
+		m.appendTail( buf );
+		buf.append( wrapperCloseTag );
+		mainText = null;
+		Document mainDoc = parseStrictOrSloppyXML( buf, mainDescription+" (wrapped)" );
+		buf.setLength( 0 );
+
+		buf.trimToSize();  // Free the buffer.
+		buf = null;
+
+		Document transformedDoc = transformDocument( mainDoc, transformStream );
+		mainDoc = null;
+
+		// Add FTL tags and move all content inside them.
+		// Collect live getContent() results in an Arraylist to avoid
+		// ConcurrentModificationException when detaching in the loop.
+		if ( mainHadRootTags ) {
+			Element transformedRoot = transformedDoc.getRootElement();
+			Element ftlNode = new Element( "FTL" );
+			List<Content> mergedContentList = new ArrayList<Content>( transformedRoot.getContent() );
+			for ( Content c : mergedContentList ) {  //
+				c.detach();
+			}
+			ftlNode.addContent( mergedContentList );
+			transformedRoot.addContent( ftlNode );
+		}
+
+		// Bake XML into text, filtering the stream to standardize newlines and encode.
+
+		CharsetEncoder encoder = Charset.forName( encoding ).newEncoder();
+		ByteArrayOutputStream tmpData = new ByteArrayOutputStream();
+		Writer writer = new EOLWriter( new OutputStreamWriter( tmpData, encoder ), "\r\n" );
+
+		SloppyXMLOutputProcessor.sloppyPrint( transformedDoc, writer, encoding, false );
+		writer.flush();
+		InputStream result = new ByteArrayInputStream( tmpData.toByteArray() );
+
+		return result;
 	}
 
 
