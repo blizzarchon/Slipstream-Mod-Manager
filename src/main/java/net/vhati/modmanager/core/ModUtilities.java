@@ -31,12 +31,17 @@ import java.util.zip.ZipInputStream;
 
 import ar.com.hjg.pngj.PngReader;
 
+import net.sf.saxon.lib.Feature;
+import net.sf.saxon.lib.ResourceRequest;
+import net.sf.saxon.lib.ResourceResolver;
 import net.sf.saxon.s9api.Processor;
 import net.sf.saxon.s9api.SaxonApiException;
 import net.sf.saxon.s9api.Serializer;
 import net.sf.saxon.s9api.XsltCompiler;
 import net.sf.saxon.s9api.XsltExecutable;
 import net.sf.saxon.s9api.XsltTransformer;
+import net.sf.saxon.trans.XPathException;
+
 import org.jdom2.Content;
 import org.jdom2.Document;
 import org.jdom2.Element;
@@ -50,6 +55,7 @@ import org.slf4j.LoggerFactory;
 
 import net.vhati.modmanager.core.Report.ReportMessage;
 
+import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
 
 
@@ -1169,17 +1175,36 @@ public class ModUtilities {
 	 * @param sourceDoc - the Document upon which to apply the transform
 	 * @param stylesheet - the input stream containing the stylesheet
 	 */
-	public static Document transformDocument( Document sourceDoc, InputStream stylesheet ) throws IOException {
+	public static Document transformDocument( Document sourceDoc, InputStream stylesheet, final HashMap<String, byte[]> stylesheets ) throws IOException {
 		Document input = sourceDoc.clone();
 		ByteArrayOutputStream os = new ByteArrayOutputStream(1024);
 
 		Processor p = new Processor( false );
 		XsltCompiler c = p.newXsltCompiler();
+		c.setResourceResolver( new ResourceResolver() {
+			@Override
+			public Source resolve( ResourceRequest request ) throws XPathException {
+				String relativeUri = "data/" + request.relativeUri;
+				log.info( relativeUri );
+				if ( stylesheets.containsKey( relativeUri ) ) {
+					StreamSource s = new StreamSource( new ByteArrayInputStream( stylesheets.get( relativeUri ) ) );
+					s.setSystemId( "referenced-stylesheet-" + relativeUri );
+					return s;
+				}
+				throw new XPathException(
+						"Could not find stylesheet within current mod or previous mods. Please verify the pathname."
+				);
+			}
+		});
 		XsltExecutable exe;
 		try {
-			exe = c.compile( new StreamSource( stylesheet ) );
+			StreamSource main = new StreamSource( stylesheet );
+			main.setSystemId( "main-stylesheet" );
+			exe = c.compile( main );
 		} catch (SaxonApiException e) {
-			throw new IllegalArgumentException( "Error compiling stylesheet, probable XSL syntax error", e );
+			throw new IllegalArgumentException(
+					"Error compiling stylesheet (probable XSL syntax error) — see log for details.", e
+			);
 		}
 
 		XsltTransformer t = exe.load();
@@ -1226,7 +1251,7 @@ public class ModUtilities {
 	 * @see net.vhati.modmanager.core.ModUtilities#transformDocument
 	 * @see net.vhati.modmanager.core.SloppyXMLOutputProcessor
 	 */
-	public static InputStream transformXMLFile( InputStream mainStream, InputStream transformStream, String encoding, String mainDescription, String transformDescription ) throws IOException, JDOMException {
+	public static InputStream transformXMLFile( InputStream mainStream, InputStream transformStream, String encoding, String mainDescription, String transformDescription, HashMap<String, byte[]> stylesheets ) throws IOException, JDOMException {
 		// XML declaration, or root FTL tags.
 		Pattern comboPtn = Pattern.compile( "(<[?]xml [^>]*?[?]>\n*)|(</?FTL>)" );
 		Matcher m = null;
@@ -1252,7 +1277,7 @@ public class ModUtilities {
 		buf.trimToSize();  // Free the buffer.
 		buf = null;
 
-		Document transformedDoc = transformDocument( mainDoc, transformStream );
+		Document transformedDoc = transformDocument( mainDoc, transformStream, stylesheets );
 		mainDoc = null;
 
 		// Add FTL tags and move all content inside them.

@@ -1,12 +1,14 @@
 package net.vhati.modmanager.core;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,6 +27,7 @@ import net.vhati.ftldat.PackContainer;
 import net.vhati.ftldat.PackUtilities;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.CloseShieldInputStream;
 
 
@@ -483,7 +486,8 @@ public class ModPatchThread extends Thread {
 				}
 			}
 
-			log.info( "Scanning XSL Transforms..." );
+			HashMap<String, byte[]> stylesheets = new HashMap<>();
+			log.info( "Adding XSL Transforms to temporary database..." );
 			for ( File modFile : modFiles ) {
 				if ( modFile.equals( selfMetadataMod ) ) {
 					continue;
@@ -527,18 +531,86 @@ public class ModPatchThread extends Thread {
 							continue;
 						}
 						if ( fileName.endsWith( ".xsl" ) ) {
+							innerPath = checkCase( innerPath, knownPaths, knownPathsLower );
+
+							String key = parentPath+fileName;
+							if ( stylesheets.containsKey( key ) ) {
+								log.warn( String.format( "Clobbering earlier stylesheet: %s", fileName ) );
+							}
+							byte[] copy = IOUtils.toByteArray( zis );
+							stylesheets.put( key, copy );
+
+							if ( !moddedItems.contains( innerPath ) ) {
+								moddedItems.add( innerPath );
+							}
+						}
+						// copied from below\
+						zis.closeEntry();
+					}
+				}
+				// copied from below
+				finally {
+					try {if ( zis != null ) zis.close();}
+					catch ( Exception e ) {}
+
+					try {if ( fis != null ) fis.close();}
+					catch ( Exception e ) {}
+
+					System.gc();
+				}
+				// update progress by 1
+				observer.patchingProgress( progMilestone + progModsMax/modFiles.size(), progMax );
+
+				// same basic form as above
+				log.info( "Applying XSL Transforms..." );
+				fis = null;
+				zis = null;
+				try {
+					fis = new FileInputStream( modFile );
+					zis = new ZipInputStream( new BufferedInputStream( fis ) );
+					ZipEntry item;
+					while ( (item = zis.getNextEntry()) != null ) {
+						// copied from below
+						if ( item.isDirectory() ) {
+							zis.closeEntry();
+							continue;
+						}
+						String innerPath = item.getName();
+						innerPath = innerPath.replace( '\\', '/' );  // Non-standard zips.
+						Matcher m = pathPtn.matcher( innerPath );
+						if ( !m.matches() ) {
+							log.warn( String.format( "Unexpected innerPath: %s", innerPath ) );
+							zis.closeEntry();
+							continue;
+						}
+						String parentPath = m.group( 1 );
+						String root = m.group( 2 );
+						String fileName = m.group( 3 );
+						AbstractPack pack = packContainer.getPackFor( innerPath );
+						if ( pack == null ) {
+							if ( !knownRoots.contains( root ) ) {
+								log.warn( String.format( "Unexpected innerPath: %s", innerPath ) );
+							} else {
+								log.debug( String.format( "Ignoring innerPath with known root: %s", innerPath ) );
+							}
+							zis.closeEntry();
+							continue;
+						}
+						if ( ModUtilities.isJunkFile( innerPath ) ) {
+							log.warn( String.format( "Skipping junk file: %s", innerPath ) );
+							zis.closeEntry();
+							continue;
+						}
+						if ( fileName.endsWith( ".xsl" ) ) {
 							innerPath = parentPath + fileName.replaceAll( "[.]xsl$", ".xml" );
 							innerPath = checkCase( innerPath, knownPaths, knownPathsLower );
-							if ( !pack.contains( innerPath ) ) {
-								log.warn( String.format( "Non-existent innerPath wasn't raw appended: %s", innerPath ) );
-							}
-							else {
-								log.warn( String.format( "Applying xsl transform: %s", innerPath ) );
+							if ( pack.contains( innerPath ) ) {
+								log.info( String.format( "Transforming file: %s", innerPath ) );
 								InputStream mainStream = null;
 								try {
 									mainStream = pack.getInputStream( innerPath );
-									// CloseShieldInputStream prevents zis from being closed, which ModUtilities.transformDocument does later
-									InputStream transformedStream = ModUtilities.transformXMLFile( mainStream, new CloseShieldInputStream(zis), ultimateEncoding, pack.getName()+":"+innerPath, modFile.getName()+":"+parentPath+fileName );
+									// CloseShieldInputStream prevents ModUtilities.transformDocument from auto-closing zis
+									InputStream transformedStream = ModUtilities.transformXMLFile( mainStream, CloseShieldInputStream.wrap(zis), ultimateEncoding, pack.getName()+":"+innerPath, modFile.getName()+":"+parentPath+fileName, stylesheets );
 									mainStream.close();
 									pack.remove( innerPath );
 									pack.add( innerPath, transformedStream );
