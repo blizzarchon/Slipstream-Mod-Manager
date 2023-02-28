@@ -162,7 +162,7 @@ public class SloppyXMLOutputProcessor extends AbstractXMLOutputProcessor {
 	 *
 	 * @param doc
 	 * @param writer
-	 * @param disableEscaping
+	 * @param allowEscaping
 	 */
 	public static void sloppyPrint( Document doc, Writer writer, String encoding, boolean allowEscaping ) throws IOException {
 		Format format = Format.getPrettyFormat();

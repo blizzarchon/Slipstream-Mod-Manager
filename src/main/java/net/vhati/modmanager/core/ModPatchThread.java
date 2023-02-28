@@ -487,10 +487,15 @@ public class ModPatchThread extends Thread {
 			}
 
 			HashMap<String, byte[]> stylesheets = new HashMap<>();
-			log.info( "Adding XSL Transforms to temporary database..." );
+			//log.info( "Adding XSL Transforms to temporary database..." );
 			for ( File modFile : modFiles ) {
 				if ( modFile.equals( selfMetadataMod ) ) {
 					continue;
+				}
+				else {
+					log.info( "" );
+					log.info( String.format( "Applying transforms of mod: %s", modFile.getName() ) );
+					observer.patchingMod( modFile );
 				}
 				FileInputStream fis = null;
 				ZipInputStream zis = null;
@@ -535,10 +540,11 @@ public class ModPatchThread extends Thread {
 
 							String key = parentPath+fileName;
 							if ( stylesheets.containsKey( key ) ) {
-								log.warn( String.format( "Clobbering earlier stylesheet: %s", fileName ) );
+								log.warn( String.format( "Clobbering earlier stylesheet: %s", innerPath ) );
 							}
 							byte[] copy = IOUtils.toByteArray( zis );
 							stylesheets.put( key, copy );
+							log.info( "Added stylesheet to temporary database: " + innerPath );
 
 							if ( !moddedItems.contains( innerPath ) ) {
 								moddedItems.add( innerPath );
@@ -562,7 +568,7 @@ public class ModPatchThread extends Thread {
 				observer.patchingProgress( progMilestone + progModsMax/modFiles.size(), progMax );
 
 				// same basic form as above
-				log.info( "Applying XSL Transforms..." );
+				boolean noTransformsYet = true;
 				fis = null;
 				zis = null;
 				try {
@@ -602,6 +608,10 @@ public class ModPatchThread extends Thread {
 							continue;
 						}
 						if ( fileName.endsWith( ".xsl" ) ) {
+							if ( noTransformsYet ) {
+								noTransformsYet = false;
+								log.info( "Applying XSL Transforms..." );
+							}
 							innerPath = parentPath + fileName.replaceAll( "[.]xsl$", ".xml" );
 							innerPath = checkCase( innerPath, knownPaths, knownPathsLower );
 							if ( pack.contains( innerPath ) ) {
@@ -624,6 +634,10 @@ public class ModPatchThread extends Thread {
 									moddedItems.add( innerPath );
 								}
 							}
+							else {
+								String padding = new String( new char[23] ).replace("\0", " ");
+								log.warn( String.format( "Could not find base file: %s\n%sAssuming %s is an XSL library", innerPath, padding, fileName ) );
+							}
 						}
 						// copied from below
 						zis.closeEntry();
@@ -641,6 +655,7 @@ public class ModPatchThread extends Thread {
 				}
 				// update progress by 1
 				observer.patchingProgress( progMilestone + progModsMax/modFiles.size(), progMax );
+				if ( noTransformsYet ) log.info( "Mod had no transforms, nothing applied" );
 			}
 
 			progMilestone += progModsMax;

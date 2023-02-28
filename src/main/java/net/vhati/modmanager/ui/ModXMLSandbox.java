@@ -29,6 +29,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -41,6 +42,7 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
@@ -100,6 +102,8 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 	private RSyntaxTextArea resultArea;
 	private JTextArea messageArea;
 	private JTextField findField;
+	private JCheckBox regexCheckBox;
+	private JCheckBox caseSensitiveCheckBox;
 	private JButton openBtn;
 	private JButton patchBtn;
 	private JLabel statusLbl;
@@ -174,6 +178,15 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 		findField = new JTextField( "<find: ctrl-f, F3/shift-F3>", 20 );
 		findField.setMaximumSize( new Dimension( 60, findField.getPreferredSize().height ) );
 		ctrlPanel.add( findField );
+
+		regexCheckBox = new JCheckBox( "Regex?" );
+		regexCheckBox.setHorizontalTextPosition( SwingConstants.LEFT );
+		regexCheckBox.setToolTipText( "Interpret the find text field as a regular expression." );
+		ctrlPanel.add( regexCheckBox );
+
+		caseSensitiveCheckBox = new JCheckBox( "Case-Sensitive?" );
+		caseSensitiveCheckBox.setHorizontalTextPosition( SwingConstants.LEFT );
+		ctrlPanel.add( caseSensitiveCheckBox );
 
 		ctrlPanel.add( Box.createHorizontalGlue() );
 
@@ -446,7 +459,9 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 		Caret caret = currentArea.getCaret();
 		int from = Math.max( caret.getDot(), caret.getMark() );
 
-		Pattern ptn = Pattern.compile( "(?i)"+ Pattern.quote( query ) );
+		if ( !regexCheckBox.isSelected() ) query = Pattern.quote( query );
+		if ( !caseSensitiveCheckBox.isSelected() ) query = "(?i)" + query;
+		Pattern ptn = Pattern.compile( query );
 		Matcher m = ptn.matcher( currentArea.getText() );
 		if ( m.find(from) ) {
 			caret.setDot( m.start() );
@@ -465,7 +480,9 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 		Caret caret = currentArea.getCaret();
 		int from = Math.min( caret.getDot(), caret.getMark() );
 
-		Pattern ptn = Pattern.compile( "(?i)"+ Pattern.quote(query) );
+		if ( !regexCheckBox.isSelected() ) query = Pattern.quote( query );
+		if ( !caseSensitiveCheckBox.isSelected() ) query = "(?i)" + query;
+		Pattern ptn = Pattern.compile( query );
 		Matcher m = ptn.matcher( currentArea.getText() );
 		m.region( 0, from );
 		int lastStart = -1;

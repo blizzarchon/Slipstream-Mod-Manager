@@ -54,8 +54,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.vhati.modmanager.core.Report.ReportMessage;
+import org.xml.sax.InputSource;
 
 import javax.xml.transform.Source;
+import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamSource;
 
 
@@ -1185,19 +1187,23 @@ public class ModUtilities {
 			@Override
 			public Source resolve( ResourceRequest request ) throws XPathException {
 				String relativeUri = "data/" + request.relativeUri;
-				log.info( relativeUri );
+				//log.info( relativeUri );
 				if ( stylesheets.containsKey( relativeUri ) ) {
+					log.info( "Using library file: " + relativeUri );
 					StreamSource s = new StreamSource( new ByteArrayInputStream( stylesheets.get( relativeUri ) ) );
 					s.setSystemId( "referenced-stylesheet-" + relativeUri );
 					return s;
 				}
 				throw new XPathException(
-						"Could not find stylesheet within current mod or previous mods. Please verify the pathname."
+						"Could not find stylesheet within current mod or previous mods.\n" +
+					 "   Please verify the pathname: " + request.relativeUri
 				);
 			}
 		});
 		XsltExecutable exe;
 		try {
+			//InputSource iss = new InputSource( stylesheet );
+			//SAXSource sax = new SAXSource( iss );
 			StreamSource main = new StreamSource( stylesheet );
 			main.setSystemId( "main-stylesheet" );
 			exe = c.compile( main );

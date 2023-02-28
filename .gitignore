@@ -20,3 +20,7 @@ Desktop.ini
 # files created from running app directly
 modman-log.txt
 modman.cfg
+
+# folders you need if you want to run app directly
+backup/
+mods/

@@ -1,5 +1,23 @@
 Changelog
 
+1.10.1:
+- XSLT include/import can now reference stylesheets within the current mod and prior patched mods
+- Added better log information describing status of XSLT stylesheet transformations
+- Added toggles for regex and case-sensitivity in XML Sandbox search feature
+
+1.10:
+- Added metadata mechanism that enables mods to only work on this version of SMM and later
+- Added simple XSLT 3.0 support: use .xsl to target existing .xml of the same name
+
+1.9.7:
+- Added syntax highlighting and code folding to XML Sandbox for better testing
+- Fixed encoding bug where caching turned UTF-8 chars in metadata into question marks
+
+1.9.6:
+- Improved advanced insertByFind tag, see readme_modders.txt for details
+- Fixed encoding bug in XML Sandbox that prevented patching if the Append tab had UTF-8 chars
+- New content added by advanced tags now formats nicely for easier XML Sandbox testing
+
 1.9.5:
 - Added advanced insertByFind tag
 - Fixed encoding bug in XML Sandbox that prevented patching files with UTF-8 chars
