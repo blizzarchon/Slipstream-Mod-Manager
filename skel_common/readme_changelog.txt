@@ -1,5 +1,9 @@
 Changelog
 
+1.10.2:
+- XSLT stylesheets are now added to the dat instead of a temporary database
+- XSLT stylesheets can now source data from any data file via document() and related functions
+
 1.10.1:
 - XSLT include/import can now reference stylesheets within the current mod and prior patched mods
 - Added better log information describing status of XSLT stylesheet transformations

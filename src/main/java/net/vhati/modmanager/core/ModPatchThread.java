@@ -1,14 +1,12 @@
 package net.vhati.modmanager.core;
 
 import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,7 +25,6 @@ import net.vhati.ftldat.PackContainer;
 import net.vhati.ftldat.PackUtilities;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.CloseShieldInputStream;
 
 
@@ -260,7 +257,6 @@ public class ModPatchThread extends Thread {
 						log.info( String.format( "Installing mod: %s", modFile.getName() ) );
 						observer.patchingMod( modFile );
 					}
-
 					fis = new FileInputStream( modFile );
 					zis = new ZipInputStream( new BufferedInputStream( fis ) );
 					ZipEntry item;
@@ -422,6 +418,7 @@ public class ModPatchThread extends Thread {
 							}
 							pack.add( innerPath, fixedStream );
 						}
+						else if ( fileName.endsWith( ".xsl" ) ) continue; // handled properly during second pass
 						else if ( fileName.endsWith( ".txt" ) ) {
 							innerPath = checkCase( innerPath, knownPaths, knownPathsLower );
 
@@ -486,8 +483,6 @@ public class ModPatchThread extends Thread {
 				}
 			}
 
-			HashMap<String, byte[]> stylesheets = new HashMap<>();
-			//log.info( "Adding XSL Transforms to temporary database..." );
 			for ( File modFile : modFiles ) {
 				if ( modFile.equals( selfMetadataMod ) ) {
 					continue;
@@ -538,13 +533,12 @@ public class ModPatchThread extends Thread {
 						if ( fileName.endsWith( ".xsl" ) ) {
 							innerPath = checkCase( innerPath, knownPaths, knownPathsLower );
 
-							String key = parentPath+fileName;
-							if ( stylesheets.containsKey( key ) ) {
-								log.warn( String.format( "Clobbering earlier stylesheet: %s", innerPath ) );
+							if ( pack.contains( innerPath ) ) {
+								log.warn( "Clobbering earlier stylesheet: " + innerPath );
+								pack.remove( innerPath );
 							}
-							byte[] copy = IOUtils.toByteArray( zis );
-							stylesheets.put( key, copy );
-							log.info( "Added stylesheet to temporary database: " + innerPath );
+							pack.add( innerPath, zis );
+							log.info( "Added stylesheet to dat: " + innerPath );
 
 							if ( !moddedItems.contains( innerPath ) ) {
 								moddedItems.add( innerPath );
@@ -620,7 +614,7 @@ public class ModPatchThread extends Thread {
 								try {
 									mainStream = pack.getInputStream( innerPath );
 									// CloseShieldInputStream prevents ModUtilities.transformDocument from auto-closing zis
-									InputStream transformedStream = ModUtilities.transformXMLFile( mainStream, CloseShieldInputStream.wrap(zis), ultimateEncoding, pack.getName()+":"+innerPath, modFile.getName()+":"+parentPath+fileName, stylesheets );
+									InputStream transformedStream = ModUtilities.transformXMLFile( mainStream, CloseShieldInputStream.wrap(zis), ultimateEncoding, pack.getName()+":"+innerPath, modFile.getName()+":"+parentPath+fileName, pack );
 									mainStream.close();
 									pack.remove( innerPath );
 									pack.add( innerPath, transformedStream );

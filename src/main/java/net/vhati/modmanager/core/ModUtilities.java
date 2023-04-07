@@ -60,6 +60,8 @@ import javax.xml.transform.Source;
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamSource;
 
+import net.vhati.ftldat.AbstractPack;
+
 
 public class ModUtilities {
 
@@ -1177,7 +1179,7 @@ public class ModUtilities {
 	 * @param sourceDoc - the Document upon which to apply the transform
 	 * @param stylesheet - the input stream containing the stylesheet
 	 */
-	public static Document transformDocument( Document sourceDoc, InputStream stylesheet, final HashMap<String, byte[]> stylesheets ) throws IOException {
+	public static Document transformDocument( Document sourceDoc, InputStream stylesheet, final AbstractPack pack ) throws IOException {
 		Document input = sourceDoc.clone();
 		ByteArrayOutputStream os = new ByteArrayOutputStream(1024);
 
@@ -1187,10 +1189,15 @@ public class ModUtilities {
 			@Override
 			public Source resolve( ResourceRequest request ) throws XPathException {
 				String relativeUri = "data/" + request.relativeUri;
-				//log.info( relativeUri );
-				if ( stylesheets.containsKey( relativeUri ) ) {
+				if ( pack.contains( relativeUri ) ) {
 					log.info( "Using library file: " + relativeUri );
-					StreamSource s = new StreamSource( new ByteArrayInputStream( stylesheets.get( relativeUri ) ) );
+					InputStream is;
+					try {
+						is = pack.getInputStream( relativeUri );
+					} catch ( IOException e ) {
+						throw new RuntimeException( "Encountered an error retrieving stream from pack.", e );
+					}
+					StreamSource s = new StreamSource( is );
 					s.setSystemId( "referenced-stylesheet-" + relativeUri );
 					return s;
 				}
@@ -1215,6 +1222,28 @@ public class ModUtilities {
 
 		XsltTransformer t = exe.load();
 		t.setSource( new JDOMSource( input ) );
+		t.setResourceResolver( new ResourceResolver() {
+			@Override
+			public Source resolve( ResourceRequest request ) throws XPathException {
+				String relativeUri = "data/" + request.relativeUri;
+				if ( pack.contains( relativeUri ) ) {
+					log.info( "Stylesheet references file: " + relativeUri );
+					InputStream is;
+					try {
+						is = pack.getInputStream( relativeUri );
+					} catch ( IOException e ) {
+						throw new RuntimeException( "Encountered an error retrieving stream from pack.", e );
+					}
+					StreamSource s = new StreamSource( is );
+					s.setSystemId( "referenced-document-" + relativeUri );
+					return s;
+				}
+				throw new XPathException(
+						"Could not find document within currently patched dat.\n" +
+					 "   Please verify the pathname: " + request.relativeUri
+				);
+			}
+		});
 		Serializer s = p.newSerializer( os );
 		// set serializer options here
 		// e.g. s.setOutputProperty( Serializer.Property.INDENT, "yes" );
@@ -1257,7 +1286,7 @@ public class ModUtilities {
 	 * @see net.vhati.modmanager.core.ModUtilities#transformDocument
 	 * @see net.vhati.modmanager.core.SloppyXMLOutputProcessor
 	 */
-	public static InputStream transformXMLFile( InputStream mainStream, InputStream transformStream, String encoding, String mainDescription, String transformDescription, HashMap<String, byte[]> stylesheets ) throws IOException, JDOMException {
+	public static InputStream transformXMLFile( InputStream mainStream, InputStream transformStream, String encoding, String mainDescription, String transformDescription, AbstractPack pack ) throws IOException, JDOMException {
 		// XML declaration, or root FTL tags.
 		Pattern comboPtn = Pattern.compile( "(<[?]xml [^>]*?[?]>\n*)|(</?FTL>)" );
 		Matcher m = null;
@@ -1283,7 +1312,7 @@ public class ModUtilities {
 		buf.trimToSize();  // Free the buffer.
 		buf = null;
 
-		Document transformedDoc = transformDocument( mainDoc, transformStream, stylesheets );
+		Document transformedDoc = transformDocument( mainDoc, transformStream, pack );
 		mainDoc = null;
 
 		// Add FTL tags and move all content inside them.

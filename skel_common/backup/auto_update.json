@@ -2,7 +2,7 @@
 	"history_versions" : {
 		"1" : {
 			"latest" : {
-				"version" : "1.10.1",
+				"version" : "1.10.2",
 				"urls" : {
 					"Forum" : "https://subsetgames.com/forum/viewtopic.php?f=12&t=17102",
 					"Mac/Linux" : "https://sourceforge.net/projects/slipstreammodmanager/files/Slipstream/1.9.1/SlipstreamModManager_1.9.1-Unix.tar.gz/download",
@@ -11,6 +11,14 @@
 				"notice" : "Reminder: Return FTL to an unmodded state before upgrading SMM.\nAnd delete SMM's backups when upgrading FTL."
 			},
 			"changelog" : [
+				{
+					"version": "1.10.2",
+					"hidden": false,
+					"changes": [
+						"XSLT stylesheets are now added to the dat instead of a temporary database",
+						"XSLT stylesheets can now source data from any data file via document() and related functions"
+					]
+				},
 				{
 					"version": "1.10.1",
 					"hidden": false,
