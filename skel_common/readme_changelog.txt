@@ -1,4 +1,7 @@
 Changelog
+1.10.3:
+- Stylesheets now are used in the proper mod order rather than after all mods' appends
+- Cleaned up log info regarding stylesheets to only the library and transform steps
 
 1.10.2:
 - XSLT stylesheets are now added to the dat instead of a temporary database

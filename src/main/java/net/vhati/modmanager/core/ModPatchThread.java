@@ -418,7 +418,20 @@ public class ModPatchThread extends Thread {
 							}
 							pack.add( innerPath, fixedStream );
 						}
-						else if ( fileName.endsWith( ".xsl" ) ) continue; // handled properly during second pass
+						else if ( fileName.endsWith( ".xsl" ) ) {
+							innerPath = checkCase( innerPath, knownPaths, knownPathsLower );
+
+							if ( pack.contains( innerPath ) ) {
+								log.warn( "Clobbering earlier stylesheet: " + innerPath );
+								pack.remove( innerPath );
+							}
+							pack.add( innerPath, zis );
+							//log.info( "Added stylesheet to dat: " + innerPath );
+
+							if ( !moddedItems.contains( innerPath ) ) {
+								moddedItems.add( innerPath );
+							}
+						}
 						else if ( fileName.endsWith( ".txt" ) ) {
 							innerPath = checkCase( innerPath, knownPaths, knownPathsLower );
 
@@ -466,103 +479,13 @@ public class ModPatchThread extends Thread {
 					System.gc();
 				}
 
-				modsInstalled++;
-				observer.patchingProgress( progMilestone + progModsMax/modFiles.size()*modsInstalled, progMax );
-			}
-			// Remove the temporary file
-			if ( selfMetadataMod != null ) {
-				try {
-					Files.deleteIfExists( selfMetadataMod.toPath() );
-				}
-				catch ( IOException e ) {
-					log.info( "" );
-					log.warn( String.format( "Couldn't delete %s, located in %s.", selfMetadataMod.getName(), selfMetadataMod.getParentFile() ) );
-					log.info( "This mod file is created during patching to add metadata, after which it is no longer needed and deleted." );
-					log.info( "Modders can then reference this metadata to guarantee the end user uses this custom version of Slipstream." );
-					log.info( "" );
-				}
-			}
-
-			for ( File modFile : modFiles ) {
 				if ( modFile.equals( selfMetadataMod ) ) {
 					continue;
 				}
 				else {
-					log.info( "" );
-					log.info( String.format( "Applying transforms of mod: %s", modFile.getName() ) );
 					observer.patchingMod( modFile );
 				}
-				FileInputStream fis = null;
-				ZipInputStream zis = null;
-				try {
-					fis = new FileInputStream( modFile );
-					zis = new ZipInputStream( new BufferedInputStream( fis ) );
-					ZipEntry item;
-					while ( (item = zis.getNextEntry()) != null ) {
-						// copied from below
-						if ( item.isDirectory() ) {
-							zis.closeEntry();
-							continue;
-						}
-						String innerPath = item.getName();
-						innerPath = innerPath.replace( '\\', '/' );  // Non-standard zips.
-						Matcher m = pathPtn.matcher( innerPath );
-						if ( !m.matches() ) {
-							log.warn( String.format( "Unexpected innerPath: %s", innerPath ) );
-							zis.closeEntry();
-							continue;
-						}
-						String parentPath = m.group( 1 );
-						String root = m.group( 2 );
-						String fileName = m.group( 3 );
-						AbstractPack pack = packContainer.getPackFor( innerPath );
-						if ( pack == null ) {
-							if ( !knownRoots.contains( root ) ) {
-								log.warn( String.format( "Unexpected innerPath: %s", innerPath ) );
-							} else {
-								log.debug( String.format( "Ignoring innerPath with known root: %s", innerPath ) );
-							}
-							zis.closeEntry();
-							continue;
-						}
-						if ( ModUtilities.isJunkFile( innerPath ) ) {
-							log.warn( String.format( "Skipping junk file: %s", innerPath ) );
-							zis.closeEntry();
-							continue;
-						}
-						if ( fileName.endsWith( ".xsl" ) ) {
-							innerPath = checkCase( innerPath, knownPaths, knownPathsLower );
-
-							if ( pack.contains( innerPath ) ) {
-								log.warn( "Clobbering earlier stylesheet: " + innerPath );
-								pack.remove( innerPath );
-							}
-							pack.add( innerPath, zis );
-							log.info( "Added stylesheet to dat: " + innerPath );
-
-							if ( !moddedItems.contains( innerPath ) ) {
-								moddedItems.add( innerPath );
-							}
-						}
-						// copied from below\
-						zis.closeEntry();
-					}
-				}
-				// copied from below
-				finally {
-					try {if ( zis != null ) zis.close();}
-					catch ( Exception e ) {}
-
-					try {if ( fis != null ) fis.close();}
-					catch ( Exception e ) {}
-
-					System.gc();
-				}
-				// update progress by 1
-				observer.patchingProgress( progMilestone + progModsMax/modFiles.size(), progMax );
-
-				// same basic form as above
-				boolean noTransformsYet = true;
+				// same form as above
 				fis = null;
 				zis = null;
 				try {
@@ -570,7 +493,6 @@ public class ModPatchThread extends Thread {
 					zis = new ZipInputStream( new BufferedInputStream( fis ) );
 					ZipEntry item;
 					while ( (item = zis.getNextEntry()) != null ) {
-						// copied from below
 						if ( item.isDirectory() ) {
 							zis.closeEntry();
 							continue;
@@ -579,7 +501,7 @@ public class ModPatchThread extends Thread {
 						innerPath = innerPath.replace( '\\', '/' );  // Non-standard zips.
 						Matcher m = pathPtn.matcher( innerPath );
 						if ( !m.matches() ) {
-							log.warn( String.format( "Unexpected innerPath: %s", innerPath ) );
+							// "Unexpected innerPath" warning already shown above
 							zis.closeEntry();
 							continue;
 						}
@@ -587,25 +509,14 @@ public class ModPatchThread extends Thread {
 						String root = m.group( 2 );
 						String fileName = m.group( 3 );
 						AbstractPack pack = packContainer.getPackFor( innerPath );
-						if ( pack == null ) {
-							if ( !knownRoots.contains( root ) ) {
-								log.warn( String.format( "Unexpected innerPath: %s", innerPath ) );
-							} else {
-								log.debug( String.format( "Ignoring innerPath with known root: %s", innerPath ) );
-							}
-							zis.closeEntry();
-							continue;
-						}
-						if ( ModUtilities.isJunkFile( innerPath ) ) {
-							log.warn( String.format( "Skipping junk file: %s", innerPath ) );
+						if ( pack == null || ModUtilities.isJunkFile( innerPath ) ) {
+							// "Unexpected innerPath" "Ignoring innerPath with known root" "Skipping junk file"
+							// these warnings are already shown above
 							zis.closeEntry();
 							continue;
 						}
 						if ( fileName.endsWith( ".xsl" ) ) {
-							if ( noTransformsYet ) {
-								noTransformsYet = false;
-								log.info( "Applying XSL Transforms..." );
-							}
+							log.info( "" );
 							innerPath = parentPath + fileName.replaceAll( "[.]xsl$", ".xml" );
 							innerPath = checkCase( innerPath, knownPaths, knownPathsLower );
 							if ( pack.contains( innerPath ) ) {
@@ -637,7 +548,7 @@ public class ModPatchThread extends Thread {
 						zis.closeEntry();
 					}
 				}
-				// copied from below
+				// copied from above
 				finally {
 					try {if ( zis != null ) zis.close();}
 					catch ( Exception e ) {}
@@ -647,9 +558,22 @@ public class ModPatchThread extends Thread {
 
 					System.gc();
 				}
-				// update progress by 1
-				observer.patchingProgress( progMilestone + progModsMax/modFiles.size(), progMax );
-				if ( noTransformsYet ) log.info( "Mod had no transforms, nothing applied" );
+
+				modsInstalled++;
+				observer.patchingProgress( progMilestone + progModsMax/modFiles.size()*modsInstalled, progMax );
+			}
+			// Remove the temporary file
+			if ( selfMetadataMod != null ) {
+				try {
+					Files.deleteIfExists( selfMetadataMod.toPath() );
+				}
+				catch ( IOException e ) {
+					log.info( "" );
+					log.warn( String.format( "Couldn't delete %s, located in %s.", selfMetadataMod.getName(), selfMetadataMod.getParentFile() ) );
+					log.info( "This mod file is created during patching to add metadata, after which it is no longer needed and deleted." );
+					log.info( "Modders can then reference this metadata to guarantee the end user uses this custom version of Slipstream." );
+					log.info( "" );
+				}
 			}
 
 			progMilestone += progModsMax;
