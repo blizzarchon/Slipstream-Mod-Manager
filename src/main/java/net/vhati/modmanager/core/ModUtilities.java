@@ -373,7 +373,7 @@ public class ModUtilities {
 	 * @see net.vhati.modmanager.core.XMLPatcher
 	 * @see net.vhati.modmanager.core.SloppyXMLOutputProcessor
 	 */
-	public static InputStream rebuildXMLFile( InputStream srcStream, String encoding, String srcDescription ) throws IOException, JDOMException {
+	public static InputStream rebuildXMLFile( InputStream srcStream, String encoding, String srcDescription, boolean addFTLTag ) throws IOException, JDOMException {
 		Pattern xmlDeclPtn = Pattern.compile( "<[?]xml [^>]*?[?]>\n*" );
 
 		String srcText = decodeText( srcStream, srcDescription ).text;
@@ -387,6 +387,19 @@ public class ModUtilities {
 				" xmlns:mod-after='mod-after'>"+ srcText +"</wrapper>";
 		Document doc = parseStrictOrSloppyXML( srcText, srcDescription+" (wrapped)" );
 		srcText = null;
+
+		// Wrap the document in a root <FTL> tag if required.
+		// This is used by Project Wormhole.
+		if (addFTLTag && doc.getRootElement().getChild("FTL") == null) {
+			Element newRoot = doc.getRootElement();
+			Element ftlNode = new Element("FTL");
+			List<Content> rootContent = new ArrayList<>(newRoot.getContent());
+			for (Content c : rootContent) {
+				c.detach();
+			}
+			ftlNode.addContent(rootContent);
+			newRoot.addContent(ftlNode);
+		}
 
 		// Bake XML into text, filtering the stream to standardize newlines and encode.
 
