@@ -6,16 +6,23 @@ import java.io.File;
 public class ModFileInfo implements Comparable<ModFileInfo> {
 	private File file;
 	private String name;
-
+	//Only updates on save/load, does not dynamically track state
+	private boolean saveAsEnabled;
 
 	public ModFileInfo( File f ) {
+		this( f, false );
+	}
+
+	public ModFileInfo( File f, boolean saveAsEnabled) {
 		this.file = f;
 		this.name = f.getName().replaceAll( "[.][^.]+$", "" );
+		this.saveAsEnabled = saveAsEnabled;
 	}
 
 	public File getFile() { return this.file; }
 	public String getName() { return this.name; }
-
+	public boolean isEnabledOnSave() { return this.saveAsEnabled; }
+	public void setEnabledOnSave( boolean enabled ) { saveAsEnabled = enabled; }
 
 	@Override
 	public String toString() {

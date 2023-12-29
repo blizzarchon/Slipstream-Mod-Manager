@@ -27,6 +27,8 @@ import net.vhati.modmanager.json.URLFetcher;
 import net.vhati.modmanager.ui.ManagerFrame;
 import net.vhati.modmanager.ui.table.ListState;
 
+import static net.vhati.modmanager.ui.ManagerFrame.MOD_ENABLED_MARKER;
+
 
 /**
  * Performs I/O-related setup for ManagerFrame in the background.
@@ -168,6 +170,7 @@ public class ManagerInitThread extends Thread {
 	 */
 	private ListState<ModFileInfo> loadModsTableState() {
 		List<String> fileNames = new ArrayList<String>();
+		List<Boolean> enabledMods = new ArrayList<Boolean>();
 
 		BufferedReader br = null;
 		try {
@@ -175,7 +178,14 @@ public class ManagerInitThread extends Thread {
 			br = new BufferedReader( new InputStreamReader( is, Charset.forName( "UTF-8" ) ) );
 			String line;
 			while ( (line = br.readLine()) != null ) {
-				fileNames.add( line );
+				// If the last character is *, mark as enabled and parse it out
+				if ( MOD_ENABLED_MARKER == (line.charAt( line.length() - 1 )) ) {
+					fileNames.add( line.substring(0, line.length() - 1) );
+					enabledMods.add( true );
+				} else {
+					fileNames.add( line );
+					enabledMods.add( false );
+				}
 			}
 		}
 		catch ( FileNotFoundException e ) {
@@ -193,7 +203,8 @@ public class ManagerInitThread extends Thread {
 
 		for ( String fileName : fileNames ) {
 			File modFile = new File( modsDir, fileName );
-			ModFileInfo modFileInfo = new ModFileInfo( modFile );
+			boolean enabled = enabledMods.remove( 0 );
+			ModFileInfo modFileInfo = new ModFileInfo( modFile, enabled );
 			result.addItem( modFileInfo );
 		}
 

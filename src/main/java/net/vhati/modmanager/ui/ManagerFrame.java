@@ -70,15 +70,6 @@ import net.vhati.modmanager.core.Report;
 import net.vhati.modmanager.core.Report.ReportFormatter;
 import net.vhati.modmanager.core.SlipstreamConfig;
 import net.vhati.modmanager.json.JacksonCatalogWriter;
-import net.vhati.modmanager.json.URLFetcher;
-import net.vhati.modmanager.ui.InertPanel;
-import net.vhati.modmanager.ui.ManagerInitThread;
-import net.vhati.modmanager.ui.ModInfoArea;
-import net.vhati.modmanager.ui.ModPatchDialog;
-import net.vhati.modmanager.ui.ModXMLSandbox;
-import net.vhati.modmanager.ui.SlipstreamConfigDialog;
-import net.vhati.modmanager.ui.Statusbar;
-import net.vhati.modmanager.ui.StatusbarMouseListener;
 import net.vhati.modmanager.ui.table.ChecklistTablePanel;
 import net.vhati.modmanager.ui.table.ListState;
 
@@ -89,6 +80,8 @@ public class ManagerFrame extends JFrame implements ActionListener, ModsScanObse
 
 	public static final String CATALOG_URL = "https://raw.github.com/blizzarchon/Slipstream-Mod-Manager/master/skel_common/backup/current_catalog.json";
 	public static final String APP_UPDATE_URL = "https://raw.github.com/blizzarchon/Slipstream-Mod-Manager/master/skel_common/backup/auto_update.json";
+
+	public static final char MOD_ENABLED_MARKER = '*';
 
 	private File backupDir = new File( "./backup/" );
 	private File modsDir = new File( "./mods/" );
@@ -487,8 +480,19 @@ public class ManagerFrame extends JFrame implements ActionListener, ModsScanObse
 			FileOutputStream os = new FileOutputStream( modsTableStateFile );
 			bw = new BufferedWriter(new OutputStreamWriter( os, Charset.forName( "UTF-8" ) ));
 
+			// Update all ModFileInfo's to reflect which ones should be saved as enabled
+			for ( ModFileInfo modFileInfo : modsTablePanel.getAllItems() ) {
+				modFileInfo.setEnabledOnSave( false );
+			}
+			for ( ModFileInfo modFileInfo : modsTablePanel.getSelectedItems() ) {
+				modFileInfo.setEnabledOnSave( true );
+			}
+
 			for ( ModFileInfo modFileInfo : tableState.getItems() ) {
 				bw.write( modFileInfo.getFile().getName() );
+				if ( modFileInfo.isEnabledOnSave() ) {
+					bw.write( MOD_ENABLED_MARKER );
+				}
 				bw.write( "\r\n" );
 			}
 			bw.flush();
@@ -531,8 +535,11 @@ public class ManagerFrame extends JFrame implements ActionListener, ModsScanObse
 		}
 		amendModsTableState( tableState, unsortedMods );
 
+		int i = 0;
 		for ( ModFileInfo modFileInfo : tableState.getItems() ) {
 			modsTablePanel.getTableModel().addItem( modFileInfo );
+			modsTablePanel.getTableModel().setSelected( i, modFileInfo.isEnabledOnSave() );
+			i++;
 		}
 
 		ModsScanThread scanThread = new ModsScanThread( modFiles, localModDB, this );
