@@ -120,6 +120,8 @@ public class FTLUtilities {
 		}
 		// OSX - Standalone.
 		candidates.add( new File( "/Applications/FTL.app/Contents/Resources" ) );
+		// OSX - Hyperspace wrapper.
+		candidates.add( new File( "/Applications/Dino's-Hyperspace-Wrapper.app/Contents/MacOS/Drop-FTL-Here" ) );
 
 		File result = null;
 
@@ -178,8 +180,19 @@ public class FTLUtilities {
 			}
 			else if ( f.getName().endsWith( ".app" ) && f.isDirectory() ) {
 				File contentsPath = new File( f, "Contents" );
-				if ( contentsPath.exists() && contentsPath.isDirectory() && new File( contentsPath, "Resources" ).exists() ) {
-					result = new File( contentsPath, "Resources" );
+				if ( contentsPath.exists() && contentsPath.isDirectory() ) {
+					File resourcesPath = new File( contentsPath, "Resources" );
+					if ( resourcesPath.exists() ) {
+						result = resourcesPath;
+					}
+					// try looking for Mac Hyperspace wrapper path
+					File macPath = new File( contentsPath, "MacOS" );
+					if ( macPath.exists() && macPath.isDirectory() ) {
+						File wrapperResourcesPath = new File( macPath, "Drop-FTL-Here" );
+						if ( wrapperResourcesPath.exists() ) {
+							result = wrapperResourcesPath;
+						}
+					}
 				}
 			}
 		}
@@ -255,6 +268,11 @@ public class FTLUtilities {
 				if ( bundleDir != null ) {
 					if ( new File( bundleDir, "Contents/Info.plist" ).exists() ) {
 						result = bundleDir;
+					}
+					// for mac hs wrapper, bundleDir is not it yet, still "Contents"
+					File trueBundleDir = bundleDir.getParentFile();
+					if ( new File( trueBundleDir, "Contents/Info.plist" ).exists() ) {
+						result = trueBundleDir;
 					}
 				}
 			}
