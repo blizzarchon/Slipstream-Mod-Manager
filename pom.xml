@@ -2,7 +2,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>net.vhati.modmanager</groupId>
 	<artifactId>ftl-mod-manager</artifactId>
-	<version>1.10.3</version>
+	<version>1.10.4</version>
 	<name>Slipstream Mod Manager</name>
 
 	<!-- Determined by mvn versions:display-plugin-updates -->
@@ -10,9 +10,9 @@
 		<maven>2.2.1</maven>
 	</prerequisites>
 	<properties>
-		<jdk.version>1.6</jdk.version>
-		<maven.compiler.source>1.6</maven.compiler.source>
-		<maven.compiler.target>1.6</maven.compiler.target>
+		<jdk.version>8</jdk.version>
+		<maven.compiler.source>8</maven.compiler.source>
+		<maven.compiler.target>8</maven.compiler.target>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 
