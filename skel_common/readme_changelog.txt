@@ -1,4 +1,7 @@
 Changelog
+1.10.4:
+- Minimum Java required set to 8. Fixed scanning for later Java versions.
+
 1.10.3:
 - Stylesheets now are used in the proper mod order rather than after all mods' appends
 - Cleaned up log info regarding stylesheets to only the library and transform steps
