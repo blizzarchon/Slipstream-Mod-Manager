@@ -2,7 +2,7 @@
 <launch4jConfig>
   <dontWrapJar>true</dontWrapJar>
   <headerType>console</headerType>
-  <jar>./modman.jar</jar>
+  <jar>.\modman.jar</jar>
   <outfile>.\modman.exe</outfile>
   <errTitle></errTitle>
   <cmdLine></cmdLine>
@@ -22,7 +22,7 @@
     <path>%JAVA_HOME%;%PATH%</path>
     <requiresJdk>false</requiresJdk>
     <requires64Bit>false</requires64Bit>
-    <minVersion>11</minVersion>
+    <minVersion>8</minVersion>
     <maxVersion></maxVersion>
   </jre>
 </launch4jConfig>
