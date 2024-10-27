@@ -387,7 +387,7 @@ public class ModXMLSandbox extends JFrame implements ActionListener {
 			if ( innerPath == null ) return;
 
 			is = pack.getInputStream( innerPath );
-			InputStream rebuiltStream = ModUtilities.rebuildXMLFile( is, encoding, pack.getName()+":"+innerPath );
+			InputStream rebuiltStream = ModUtilities.rebuildXMLFile( is, encoding, pack.getName()+":"+innerPath, false );
 			String rebuiltText = ModUtilities.decodeText( rebuiltStream, "Sandbox Main XML" ).text;
 			is.close();
 

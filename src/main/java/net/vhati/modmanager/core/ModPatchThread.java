@@ -391,7 +391,7 @@ public class ModPatchThread extends Thread {
 						else if ( fileName.endsWith( ".xml" ) ) {
 							innerPath = checkCase( innerPath, knownPaths, knownPathsLower );
 
-							InputStream fixedStream = ModUtilities.rebuildXMLFile( zis, ultimateEncoding, modFile.getName()+":"+parentPath+fileName );
+							InputStream fixedStream = ModUtilities.rebuildXMLFile( zis, ultimateEncoding, modFile.getName()+":"+parentPath+fileName, false );
 
 							if ( !moddedItems.contains( innerPath ) ) {
 								moddedItems.add( innerPath );
