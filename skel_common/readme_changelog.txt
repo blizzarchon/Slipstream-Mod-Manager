@@ -1,6 +1,7 @@
 Changelog
 1.10.4:
-- Minimum Java required set to 8. Fixed scanning for later Java versions.
+- Fixed Windows exe launchers not finding Java versions installed without registry keys
+- Changed minimum version of Java required to Java 8
 
 1.10.3:
 - Stylesheets now are used in the proper mod order rather than after all mods' appends
